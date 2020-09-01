@@ -249,9 +249,8 @@ const _mhchemParser: MhchemParser = {
 			', ': /^[,;]\s*/,
 			',': /^[,;]/,
 			'.': /^[.]/,
-			'. ': /^([.\u22C5\u00B7\u2022])\s*/,
+			'. __* ': /^([.\u22C5\u00B7\u2022]|[*])\s*/,
 			'...': /^\.\.\.(?=$|[^.])/,
-			'* ': /^([*])\s*/,
 			'^{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^{", "", "", "}"); } as PatternFunction<string>,
 			'^($...$)': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^", "$", "$", ""); } as PatternFunction<string>,
 			'^a': /^\^([0-9]+|[^\\_])/,
@@ -271,8 +270,9 @@ const _mhchemParser: MhchemParser = {
 			'{...}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "{", "}", ""); } as PatternFunction<string>,
 			'{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "{", "", "", "}"); } as PatternFunction<string>,
 			'$...$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", ""); } as PatternFunction<string>,
-			'${(...)}$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$"); } as PatternFunction<string>,
-			'$(...)$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$"); } as PatternFunction<string>,
+			'${(...)}$__$(...)$': function (input) {
+				return _mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$") || _mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$");
+			} as PatternFunction<string>,
 			'=<>': /^[=<>]/,
 			'#': /^[#\u2261]/,
 			'+': /^\+/,
@@ -299,9 +299,11 @@ const _mhchemParser: MhchemParser = {
 			'\\overset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\overset{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
 			'\\underset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underset{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
 			'\\underbrace{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underbrace{", "", "", "}_", "{", "", "", "}"); } as PatternFunction<string[]>,
-			'\\color{(...)}0': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); } as PatternFunction<string>,
-			'\\color{(...)}{(...)}1': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
-			'\\color(...){(...)}2': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}"); } as PatternFunction<string[]>,
+			'\\color{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); } as PatternFunction<string>,
+			'\\color{(...)}{(...)}': function (input) {
+				return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}") ||
+					_mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}");
+			} as PatternFunction<string[]>,
 			'\\ce{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\ce{", "", "", "}"); } as PatternFunction<string>,
 			'oxidation$': /^(?:[+-][IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,
 			'd-oxidation$': /^(?:[+-]?\s?[IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,  // 0 could be oxidation or charge
@@ -559,7 +561,7 @@ const _mhchemParser: MhchemParser = {
 			'...': {
 				'o|d|D|dq|qd|qD': { action_: [ 'output', { type_: 'bond', option: "..." } ], nextState: '3' },
 				'*': { action_: [ { type_: 'output', option: 1 }, { type_: 'insert', option: 'ellipsis' } ], nextState: '1' } },
-			'. |* ': {
+			'. __* ': {
 				'*': { action_: [ 'output', { type_: 'insert', option: 'addition compound' } ], nextState: '1' } },
 			'state of aggregation $': {
 				'*': { action_: [ 'output', 'state of aggregation' ], nextState: '1' } },
@@ -619,9 +621,9 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'underset-output' ], nextState: '3' } },
 			'\\underbrace{(...)}': {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'underbrace-output' ], nextState: '3' } },
-			'\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+			'\\color{(...)}{(...)}': {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'color-output' ], nextState: '3' } },
-			'\\color{(...)}0': {
+			'\\color{(...)}': {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'color0-output' ] } },
 			'\\ce{(...)}': {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'ce' ], nextState: '3' } },
@@ -825,7 +827,7 @@ const _mhchemParser: MhchemParser = {
 				'0': { action_: '1/2' } },
 			'else': {
 				'0': { action_: [], nextState: '1', revisit: true } },
-			'$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math tight', nextState: '1' } },
 			',': {
 				'*': { action_: { type_: 'insert', option: 'commaDecimal' } } },
@@ -848,7 +850,7 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: { type_: 'insert', option: 'circa' } } },
 			'\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'copy' } },
-			'${(...)}$|$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'{(...)}': {
 				'*': { action_: '{text}' } },
@@ -863,7 +865,7 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'output' } },
 			'{...}': {
 				'*': { action_: 'text=' } },
-			'${(...)}$|$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'\\greek': {
 				'*': { action_: [ 'output', 'rm' ] } },
@@ -900,7 +902,7 @@ const _mhchemParser: MhchemParser = {
 				'0': { action_: '1/2' } },
 			'else': {
 				'0': { action_: [], nextState: '!f', revisit: true } },
-			'${(...)}$|$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'{(...)}': {
 				'*': { action_: 'text' } },
@@ -912,9 +914,9 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: '9,9'  } },
 			',': {
 				'*': { action_: { type_: 'insert+p1', option: 'comma enumeration S' } } },
-			'\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+			'\\color{(...)}{(...)}': {
 				'*': { action_: 'color-output' } },
-			'\\color{(...)}0': {
+			'\\color{(...)}': {
 				'*': { action_: 'color0-output' } },
 			'\\ce{(...)}': {
 				'*': { action_: 'ce' } },
@@ -954,13 +956,13 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'rm' } },
 			'\'': {
 				'*': { action_: { type_: 'insert', option: 'prime' } } },
-			'${(...)}$|$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'{(...)}': {
 				'*': { action_: 'text' } },
-			'\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+			'\\color{(...)}{(...)}': {
 				'*': { action_: 'color-output' } },
-			'\\color{(...)}0': {
+			'\\color{(...)}': {
 				'*': { action_: 'color0-output' } },
 			'\\ce{(...)}': {
 				'*': { action_: 'ce' } },
@@ -981,7 +983,7 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: [] } },
 			'roman numeral': {
 				'*': { action_: 'roman-numeral' } },
-			'${(...)}$|$(...)$': {
+			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'else': {
 				'*': { action_: 'copy' } }

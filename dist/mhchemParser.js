@@ -199,9 +199,8 @@ var _mhchemParser = {
             ', ': /^[,;]\s*/,
             ',': /^[,;]/,
             '.': /^[.]/,
-            '. ': /^([.\u22C5\u00B7\u2022])\s*/,
+            '. __* ': /^([.\u22C5\u00B7\u2022]|[*])\s*/,
             '...': /^\.\.\.(?=$|[^.])/,
-            '* ': /^([*])\s*/,
             '^{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^{", "", "", "}"); },
             '^($...$)': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^", "$", "$", ""); },
             '^a': /^\^([0-9]+|[^\\_])/,
@@ -221,8 +220,9 @@ var _mhchemParser = {
             '{...}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "{", "}", ""); },
             '{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "{", "", "", "}"); },
             '$...$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", ""); },
-            '${(...)}$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$"); },
-            '$(...)$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$"); },
+            '${(...)}$__$(...)$': function (input) {
+                return _mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$") || _mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$");
+            },
             '=<>': /^[=<>]/,
             '#': /^[#\u2261]/,
             '+': /^\+/,
@@ -249,9 +249,11 @@ var _mhchemParser = {
             '\\overset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\overset{", "", "", "}", "{", "", "", "}"); },
             '\\underset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underset{", "", "", "}", "{", "", "", "}"); },
             '\\underbrace{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underbrace{", "", "", "}_", "{", "", "", "}"); },
-            '\\color{(...)}0': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); },
-            '\\color{(...)}{(...)}1': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}"); },
-            '\\color(...){(...)}2': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}"); },
+            '\\color{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); },
+            '\\color{(...)}{(...)}': function (input) {
+                return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}") ||
+                    _mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}");
+            },
             '\\ce{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\ce{", "", "", "}"); },
             'oxidation$': /^(?:[+-][IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,
             'd-oxidation$': /^(?:[+-]?\s?[IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,
@@ -537,7 +539,7 @@ var _mhchemParser = {
                     'o|d|D|dq|qd|qD': { action_: ['output', { type_: 'bond', option: "..." }], nextState: '3' },
                     '*': { action_: [{ type_: 'output', option: 1 }, { type_: 'insert', option: 'ellipsis' }], nextState: '1' }
                 },
-                '. |* ': {
+                '. __* ': {
                     '*': { action_: ['output', { type_: 'insert', option: 'addition compound' }], nextState: '1' }
                 },
                 'state of aggregation $': {
@@ -617,10 +619,10 @@ var _mhchemParser = {
                 '\\underbrace{(...)}': {
                     '*': { action_: [{ type_: 'output', option: 2 }, 'underbrace-output'], nextState: '3' }
                 },
-                '\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+                '\\color{(...)}{(...)}': {
                     '*': { action_: [{ type_: 'output', option: 2 }, 'color-output'], nextState: '3' }
                 },
-                '\\color{(...)}0': {
+                '\\color{(...)}': {
                     '*': { action_: [{ type_: 'output', option: 2 }, 'color0-output'] }
                 },
                 '\\ce{(...)}': {
@@ -841,7 +843,7 @@ var _mhchemParser = {
                 'else': {
                     '0': { action_: [], nextState: '1', revisit: true }
                 },
-                '$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math tight', nextState: '1' }
                 },
                 ',': {
@@ -873,7 +875,7 @@ var _mhchemParser = {
                 '\\x{}{}|\\x{}|\\x': {
                     '*': { action_: 'copy' }
                 },
-                '${(...)}$|$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math' }
                 },
                 '{(...)}': {
@@ -893,7 +895,7 @@ var _mhchemParser = {
                 '{...}': {
                     '*': { action_: 'text=' }
                 },
-                '${(...)}$|$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math' }
                 },
                 '\\greek': {
@@ -942,7 +944,7 @@ var _mhchemParser = {
                 'else': {
                     '0': { action_: [], nextState: '!f', revisit: true }
                 },
-                '${(...)}$|$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math' }
                 },
                 '{(...)}': {
@@ -960,10 +962,10 @@ var _mhchemParser = {
                 ',': {
                     '*': { action_: { type_: 'insert+p1', option: 'comma enumeration S' } }
                 },
-                '\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+                '\\color{(...)}{(...)}': {
                     '*': { action_: 'color-output' }
                 },
-                '\\color{(...)}0': {
+                '\\color{(...)}': {
                     '*': { action_: 'color0-output' }
                 },
                 '\\ce{(...)}': {
@@ -1017,16 +1019,16 @@ var _mhchemParser = {
                 '\'': {
                     '*': { action_: { type_: 'insert', option: 'prime' } }
                 },
-                '${(...)}$|$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math' }
                 },
                 '{(...)}': {
                     '*': { action_: 'text' }
                 },
-                '\\color{(...)}{(...)}1|\\color(...){(...)}2': {
+                '\\color{(...)}{(...)}': {
                     '*': { action_: 'color-output' }
                 },
-                '\\color{(...)}0': {
+                '\\color{(...)}': {
                     '*': { action_: 'color0-output' }
                 },
                 '\\ce{(...)}': {
@@ -1053,7 +1055,7 @@ var _mhchemParser = {
                 'roman numeral': {
                     '*': { action_: 'roman-numeral' }
                 },
-                '${(...)}$|$(...)$': {
+                '${(...)}$__$(...)$': {
                     '*': { action_: 'tex-math' }
                 },
                 'else': {
