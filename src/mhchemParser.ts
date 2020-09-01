@@ -1,17 +1,17 @@
-/* -*- Mode: Javascript; indent-tabs-mode:nil; js-indent-level: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
-
-/*************************************************************
+/*!
+ *************************************************************************
  *
- *  MathJax/extensions/TeX/mhchem.js
+ *  mhchemParser.ts
+ *  4.0.0-pre
  *
- *  Implements the \ce command for handling chemical formulas
- *  from the mhchem LaTeX package.
+ *  Parser for the \ce command and \pu command for MathJax and Co.
+ * 
+ *  mhchem's \ce is a tool for writing beautiful chemical equations easily.
+ *  mhchem's \pu is a tool for writing physical units easily.
  *
- *  ---------------------------------------------------------------------
+ *  ----------------------------------------------------------------------
  *
- *  Copyright (c) 2011-2015 The MathJax Consortium
- *  Copyright (c) 2015-2019 Martin Hensel
+ *  Copyright (c) 2015-2020 Martin Hensel
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -24,55 +24,85 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
+ *
+ *  ----------------------------------------------------------------------
+ *
+ *  https://github.com/mhchem/mhchemParser
+ *
  */
+
+export const mhchemParser = {
+  toTex: function (input: string, type?: "ce" | "pu"): string {
+    return _mhchemTexify.go(_mhchemParser.go(input, type));
+  }
+}
 
 //
 // Coding Style
 //   - use '' for identifiers that can by minified/uglified
 //   - use "" for strings that need to stay untouched
 
-
-MathJax.Extension["TeX/mhchem"] = {
-  version: "3.3.2"
-};
-
-MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
-
-  var TEX = MathJax.InputJax.TeX;
-
-  //
-  //  This is the main class for handing the \ce and related commands.
-  //  Its main method is Parse() which takes the argument to \ce and
-  //  returns the corresponding TeX string.
-  //
-
-  var CE = MathJax.Object.Subclass({
-    string: "",   // the \ce string being parsed
-
     //
-    //  Store the string when a CE object is created
+    // Helper funtion: mhchemCreateTransitions
+    // convert  { 'letter': { 'state': { action_: 'output' } } }  to  { 'state' => [ { pattern: 'letter', task: { action_: [{type_: 'output'}] } } ] }
+    // with expansion of 'a|b' to 'a' and 'b' (at 2 places)
     //
-    Init: function (string) { this.string = string; },
+    function mhchemCreateTransitions(o: TransitionsRaw): Transitions {
+        let pattern: PatternName, state: StateNameCombined;
+        //
+        // 1. Collect all states
+        //
+        let transitions: Transitions = {};
+        for (pattern in o) {
+          for (state in o[pattern]) {
+            let stateArray = state.split("|") as StateName[];
+            o[pattern][state].stateArray = stateArray;
+            for (let i=0; i<stateArray.length; i++) {
+              transitions[stateArray[i]] = [];
+            }
+          }
+        }
+        //
+        // 2. Fill states
+        //
+        for (pattern in o) {
+          for (state in o[pattern]) {
+            let stateArray = o[pattern as PatternName][state].stateArray || [];
+            for (let i=0; i<stateArray.length; i++) {
+              //
+              // 2a. Normalize actions into array:  'text=' ==> [{type_:'text='}]
+              // (Note to myself: Resolving the function here would be problematic. It would need .bind (for *this*) and currying (for *option*).)
+              //
+              const p = o[pattern as PatternName][state];
+              p.action_ = [].concat(p.action_);
+              for (let k=0; k<p.action_.length; k++) {
+                if (typeof p.action_[k] === "string") {
+                  p.action_[k] = { type_: p.action_[k] } as ActionNameWithParameter<ActionNameUsingMString>;
+                }
+              }
+              //
+              // 2.b Multi-insert
+              //
+              const patternArray = pattern.split("|") as PatternName[];
+              for (let j=0; j<patternArray.length; j++) {
+                if (stateArray[i] === '*') {  // insert into all
+                  let t: StateName;
+                  for (t in transitions) {
+                    transitions[t].push({ pattern: patternArray[j], task: p } as Transition);
+                  }
+                } else {
+                  transitions[stateArray[i]].push({ pattern: patternArray[j], task: p } as Transition);
+                }
+              }
+            }
+          }
+        }
+        return transitions;
+      };
 
+  const _mhchemParser: MhchemParser = {
     //
-    //  This converts the CE string to a TeX string.
-    //
-    Parse: function (stateMachine) {
-      try {
-        return texify.go(mhchemParser.go(this.string, stateMachine));
-      } catch (ex) {
-        TEX.Error(ex);
-      }
-    }
-  });
-
-  //
-  // Core parser for mhchem syntax  (recursive)
-  //
-  /** @type {MhchemParser} */
-  var mhchemParser = {
-    //
-    // Parses mchem \ce syntax
+    // Parses mhchem \ce syntax
     //
     // Call like
     //   go("H2O");
@@ -80,43 +110,8 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
     go: function (input, stateMachine) {
       if (!input) { return []; }
       if (stateMachine === undefined) { stateMachine = 'ce'; }
-      var state = '0';
-
-      //
-      // String buffers for parsing:
-      //
-      // buffer.a == amount
-      // buffer.o == element
-      // buffer.b == left-side superscript
-      // buffer.p == left-side subscript
-      // buffer.q == right-side subscript
-      // buffer.d == right-side superscript
-      //
-      // buffer.r == arrow
-      // buffer.rdt == arrow, script above, type
-      // buffer.rd == arrow, script above, content
-      // buffer.rqt == arrow, script below, type
-      // buffer.rq == arrow, script below, content
-      //
-      // buffer.text_
-      // buffer.rm
-      // etc.
-      //
-      // buffer.parenthesisLevel == int, starting at 0
-      // buffer.sb == bool, space before
-      // buffer.beginsWithBond == bool
-      //
-      // These letters are also used as state names.
-      //
-      // Other states:
-      // 0 == begin of main part (arrow/operator unlikely)
-      // 1 == next entity
-      // 2 == next entity (arrow/operator unlikely)
-      // 3 == next atom
-      // c == macro
-      //
-      /** @type {Buffer} */
-      var buffer = {};
+      let state: StateName = '0';
+      let buffer: Buffer = {};
       buffer['parenthesisLevel'] = 0;
 
       input = input.replace(/\n/g, " ");
@@ -124,13 +119,12 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       input = input.replace(/[\u2026]/g, "...");
 
       //
-      // Looks through mhchemParser.transitions, to execute a matching action
+      // Looks through _mhchemParser.transitions, to execute a matching action
       // (recursive)
       //
-      var lastInput;
-      var watchdog = 10;
-      /** @type {ParserOutput[]} */
-      var output = [];
+      let lastInput;
+      let watchdog = 10;
+      let output: Parsed[] = [];
       while (true) {
         if (lastInput !== input) {
           watchdog = 10;
@@ -141,32 +135,32 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         //
         // Find actions in transition table
         //
-        var machine = mhchemParser.stateMachines[stateMachine];
-        var t = machine.transitions[state] || machine.transitions['*'];
+        let machine = _mhchemParser.stateMachines[stateMachine];
+        let t: Transition[] = machine.transitions[state] || machine.transitions['*'];
         iterateTransitions:
-        for (var i=0; i<t.length; i++) {
-          var matches = mhchemParser.patterns.match_(t[i].pattern, input);
+        for (let i=0; i<t.length; i++) {
+          let matches = _mhchemParser.patterns.match_(t[i].pattern, input);
           if (matches) {
             //
             // Execute actions
             //
-            var task = t[i].task;
-            for (var iA=0; iA<task.action_.length; iA++) {
-              var o;
+            const task = t[i].task;
+            for (let iA=0; iA<task.action_.length; iA++) {
+              let o: undefined | Parsed | Parsed[];
               //
               // Find and execute action
               //
               if (machine.actions[task.action_[iA].type_]) {
-                o = machine.actions[task.action_[iA].type_](buffer, matches.match_, task.action_[iA].option);
-              } else if (mhchemParser.actions[task.action_[iA].type_]) {
-                o = mhchemParser.actions[task.action_[iA].type_](buffer, matches.match_, task.action_[iA].option);
+                o = machine.actions[task.action_[iA].type_](buffer, matches.match_ as any, task.action_[iA].option);
+              } else if (_mhchemParser.actions[task.action_[iA].type_]) {
+                o = _mhchemParser.actions[task.action_[iA].type_](buffer, matches.match_ as any, task.action_[iA].option);
               } else {
                 throw ["MhchemBugA", "mhchem bug A. Please report. (" + task.action_[iA].type_ + ")"];  // Trying to use non-existing action
               }
               //
               // Add output
               //
-              mhchemParser.concatArray(output, o);
+              _mhchemParser.concatArray(output, o);
             }
             //
             // Set next state,
@@ -197,8 +191,8 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
     },
     concatArray: function (a, b) {
       if (b) {
-        if (Object.prototype.toString.call(b) === "[object Array]") {  // Array.isArray(b)
-          for (var iB=0; iB<b.length; iB++) {
+        if (Array.isArray(b)) {
+          for (let iB=0; iB<b.length; iB++) {  // a.push(...b); is slower
             a.push(b[iB]);
           }
         } else {
@@ -233,28 +227,22 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         '-9.,9': /^[+\-]?(?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))/,
         '-9.,9 no missing 0': /^[+\-]?[0-9]+(?:[.,][0-9]+)?/,
         '(-)(9.,9)(e)(99)': function (input) {
-          var m = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))?(\((?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))\))?(?:(?:([eE])|\s*(\*|x|\\times|\u00D7)\s*10\^)([+\-]?[0-9]+|\{[+\-]?[0-9]+\}))?/);
-          if (m && m[0]) {
-            return { match_: m.slice(1), remainder: input.substr(m[0].length) };
+          const match = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))?(\((?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))\))?(?:(?:([eE])|\s*(\*|x|\\times|\u00D7)\s*10\^)([+\-]?[0-9]+|\{[+\-]?[0-9]+\}))?/);
+          if (match && match[0]) {  // could also match ""
+            return { match_: match.slice(1), remainder: input.substr(match[0].length) };
           }
           return null;
         },
-        '(-)(9)^(-9)': function (input) {
-          var m = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+)?)\^([+\-]?[0-9]+|\{[+\-]?[0-9]+\})/);
-          if (m && m[0]) {
-            return { match_: m.slice(1), remainder: input.substr(m[0].length) };
-          }
-          return null;
-        },
+        '(-)(9)^(-9)': /^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+)?)\^([+\-]?[0-9]+|\{[+\-]?[0-9]+\})/,
         'state of aggregation $': function (input) {  // ... or crystal system
-          var a = mhchemParser.patterns.findObserveGroups(input, "", /^\([a-z]{1,3}(?=[\),])/, ")", "");  // (aq), (aq,$\infty$), (aq, sat)
+          const a = _mhchemParser.patterns.findObserveGroups(input, "", /^\([a-z]{1,3}(?=[\),])/, ")", "");  // (aq), (aq,$\infty$), (aq, sat)
           if (a  &&  a.remainder.match(/^($|[\s,;\)\]\}])/)) { return a; }  //  AND end of 'phrase'
-          var m = input.match(/^(?:\((?:\\ca\s?)?\$[amothc]\$\))/);  // OR crystal system ($o$) (\ca$c$)
-          if (m) {
-            return { match_: m[0], remainder: input.substr(m[0].length) };
+          const match = input.match(/^(?:\((?:\\ca\s?)?\$[amothc]\$\))/);  // OR crystal system ($o$) (\ca$c$)
+          if (match) {
+            return { match_: match[0], remainder: input.substr(match[0].length) };
           }
           return null;
-        },
+        } as PatternFunction<string>,
         '_{(state of aggregation)}$': /^_\{(\([a-z]{1,3}\))\}/,
         '{[(': /^(?:\\\{|\[|\()/,
         ')]}': /^(?:\)|\]|\\\})/,
@@ -264,27 +252,27 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         '. ': /^([.\u22C5\u00B7\u2022])\s*/,
         '...': /^\.\.\.(?=$|[^.])/,
         '* ': /^([*])\s*/,
-        '^{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "^{", "", "", "}"); },
-        '^($...$)': function (input) { return mhchemParser.patterns.findObserveGroups(input, "^", "$", "$", ""); },
+        '^{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^{", "", "", "}"); } as PatternFunction<string>,
+        '^($...$)': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^", "$", "$", ""); } as PatternFunction<string>,
         '^a': /^\^([0-9]+|[^\\_])/,
-        '^\\x{}{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "^", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); },
-        '^\\x{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "^", /^\\[a-zA-Z]+\{/, "}", ""); },
+        '^\\x{}{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); } as PatternFunction<string>,
+        '^\\x{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "^", /^\\[a-zA-Z]+\{/, "}", ""); } as PatternFunction<string>,
         '^\\x': /^\^(\\[a-zA-Z]+)\s*/,
         '^(-1)': /^\^(-?\d+)/,
         '\'': /^'/,
-        '_{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "_{", "", "", "}"); },
-        '_($...$)': function (input) { return mhchemParser.patterns.findObserveGroups(input, "_", "$", "$", ""); },
+        '_{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "_{", "", "", "}"); } as PatternFunction<string>,
+        '_($...$)': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "_", "$", "$", ""); } as PatternFunction<string>,
         '_9': /^_([+\-]?[0-9]+|[^\\])/,
-        '_\\x{}{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "_", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); },
-        '_\\x{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "_", /^\\[a-zA-Z]+\{/, "}", ""); },
+        '_\\x{}{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "_", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); } as PatternFunction<string>,
+        '_\\x{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "_", /^\\[a-zA-Z]+\{/, "}", ""); } as PatternFunction<string>,
         '_\\x': /^_(\\[a-zA-Z]+)\s*/,
         '^_': /^(?:\^(?=_)|\_(?=\^)|[\^_]$)/,
         '{}': /^\{\}/,
-        '{...}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "", "{", "}", ""); },
-        '{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "{", "", "", "}"); },
-        '$...$': function (input) { return mhchemParser.patterns.findObserveGroups(input, "", "$", "$", ""); },
-        '${(...)}$': function (input) { return mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$"); },
-        '$(...)$': function (input) { return mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$"); },
+        '{...}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "{", "}", ""); } as PatternFunction<string>,
+        '{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "{", "", "", "}"); } as PatternFunction<string>,
+        '$...$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", ""); } as PatternFunction<string>,
+        '${(...)}$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "${", "", "", "}$"); } as PatternFunction<string>,
+        '$(...)$': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "$", "", "", "$"); } as PatternFunction<string>,
         '=<>': /^[=<>]/,
         '#': /^[#\u2261]/,
         '+': /^\+/,
@@ -295,38 +283,38 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         'pm-operator': /^(?:\\pm|\$\\pm\$|\+-|\+\/-)/,
         'operator': /^(?:\+|(?:[\-=<>]|<<|>>|\\approx|\$\\approx\$)(?=\s|$|-?[0-9]))/,
         'arrowUpDown': /^(?:v|\(v\)|\^|\(\^\))(?=$|[\s,;\)\]\}])/,
-        '\\bond{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\bond{", "", "", "}"); },
+        '\\bond{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\bond{", "", "", "}"); } as PatternFunction<string>,
         '->': /^(?:<->|<-->|->|<-|<=>>|<<=>|<=>|[\u2192\u27F6\u21CC])/,
         'CMT': /^[CMT](?=\[)/,
-        '[(...)]': function (input) { return mhchemParser.patterns.findObserveGroups(input, "[", "", "", "]"); },
+        '[(...)]': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "[", "", "", "]"); } as PatternFunction<string>,
         '1st-level escape': /^(&|\\\\|\\hline)\s*/,
         '\\,': /^(?:\\[,\ ;:])/,  // \\x - but output no space before
-        '\\x{}{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); },
-        '\\x{}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "", /^\\[a-zA-Z]+\{/, "}", ""); },
+        '\\x{}{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", /^\\[a-zA-Z]+\{/, "}", "", "", "{", "}", "", true); } as PatternFunction<string>,
+        '\\x{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", /^\\[a-zA-Z]+\{/, "}", ""); } as PatternFunction<string>,
         '\\ca': /^\\ca(?:\s+|(?![a-zA-Z]))/,
         '\\x': /^(?:\\[a-zA-Z]+\s*|\\[_&{}%])/,
         'orbital': /^(?:[0-9]{1,2}[spdfgh]|[0-9]{0,2}sp)(?=$|[^a-zA-Z])/,  // only those with numbers in front, because the others will be formatted correctly anyway
         'others': /^[\/~|]/,
-        '\\frac{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\frac{", "", "", "}", "{", "", "", "}"); },
-        '\\overset{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\overset{", "", "", "}", "{", "", "", "}"); },
-        '\\underset{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\underset{", "", "", "}", "{", "", "", "}"); },
-        '\\underbrace{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\underbrace{", "", "", "}_", "{", "", "", "}"); },
-        '\\color{(...)}0': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); },
-        '\\color{(...)}{(...)}1': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}"); },
-        '\\color(...){(...)}2': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}"); },
-        '\\ce{(...)}': function (input) { return mhchemParser.patterns.findObserveGroups(input, "\\ce{", "", "", "}"); },
+        '\\frac{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\frac{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\overset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\overset{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\underset{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underset{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\underbrace{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\underbrace{", "", "", "}_", "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\color{(...)}0': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}"); } as PatternFunction<string>,
+        '\\color{(...)}{(...)}1': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color{", "", "", "}", "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\color(...){(...)}2': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}"); } as PatternFunction<string[]>,
+        '\\ce{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\ce{", "", "", "}"); } as PatternFunction<string>,
         'oxidation$': /^(?:[+-][IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,
         'd-oxidation$': /^(?:[+-]?\s?[IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,  // 0 could be oxidation or charge
         'roman numeral': /^[IVX]+/,
         '1/2$': /^[+\-]?(?:[0-9]+|\$[a-z]\$|[a-z])\/[0-9]+(?:\$[a-z]\$|[a-z])?$/,
         'amount': function (input) {
-          var match;
+          let match;
           // e.g. 2, 0.5, 1/2, -2, n/2, +;  $a$ could be added later in parsing
           match = input.match(/^(?:(?:(?:\([+\-]?[0-9]+\/[0-9]+\)|[+\-]?(?:[0-9]+|\$[a-z]\$|[a-z])\/[0-9]+|[+\-]?[0-9]+[.,][0-9]+|[+\-]?\.[0-9]+|[+\-]?[0-9]+)(?:[a-z](?=\s*[A-Z]))?)|[+\-]?[a-z](?=\s*[A-Z])|\+(?!\s))/);
           if (match) {
             return { match_: match[0], remainder: input.substr(match[0].length) };
           }
-          var a = mhchemParser.patterns.findObserveGroups(input, "", "$", "$", "");
+          const a = _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", "") as MatchResult<string>;
           if (a) {  // e.g. $2n-1$, $-$
             match = a.match_.match(/^\$(?:\(?[+\-]?(?:[0-9]*[a-z]?[+\-])?[0-9]*[a-z](?:[+\-][0-9]*[a-z]?)?\)?|\+|-)\$$/);
             if (match) {
@@ -339,7 +327,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         '(KV letters),': /^(?:[A-Z][a-z]{0,2}|i)(?=,)/,
         'formula$': function (input) {
           if (input.match(/^\([a-z]+\)$/)) { return null; }  // state of aggregation = no formula
-          var match = input.match(/^(?:[a-z]|(?:[0-9\ \+\-\,\.\(\)]+[a-z])+[0-9\ \+\-\,\.\(\)]*|(?:[a-z][0-9\ \+\-\,\.\(\)]+)+[a-z]?)$/);
+          const match = input.match(/^(?:[a-z]|(?:[0-9\ \+\-\,\.\(\)]+[a-z])+[0-9\ \+\-\,\.\(\)]*|(?:[a-z][0-9\ \+\-\,\.\(\)]+)+[a-z]?)$/);
           if (match) {
             return { match_: match[0], remainder: input.substr(match[0].length) };
           }
@@ -351,23 +339,21 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         '*': /^\s*[*.]\s*/
       },
       findObserveGroups: function (input, begExcl, begIncl, endIncl, endExcl, beg2Excl, beg2Incl, end2Incl, end2Excl, combine) {
-        /** @type {{(input: string, pattern: string | RegExp): string | string[] | null;}} */
-        var _match = function (input, pattern) {
+        const _match = function (input: string, pattern: string | RegExp) : string | string[] | null {
           if (typeof pattern === "string") {
             if (input.indexOf(pattern) !== 0) { return null; }
             return pattern;
           } else {
-            var match = input.match(pattern);
+            const match = input.match(pattern);
             if (!match) { return null; }
             return match[0];
           }
         };
-        /** @type {{(input: string, i: number, endChars: string | RegExp): {endMatchBegin: number, endMatchEnd: number} | null;}} */
-        var _findObserveGroups = function (input, i, endChars) {
-          var braces = 0;
+        const _findObserveGroups = function (input: string, i: number, endChars: string | RegExp): {endMatchBegin: number, endMatchEnd: number} | null {
+          let braces = 0;
           while (i < input.length) {
-            var a = input.charAt(i);
-            var match = _match(input.substr(i), endChars);
+            let a = input.charAt(i);
+            const match = _match(input.substr(i), endChars);
             if (match !== null  &&  braces === 0) {
               return { endMatchBegin: i, endMatchEnd: i + match.length };
             } else if (a === "{") {
@@ -386,24 +372,23 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           }
           return null;
         };
-        var match = _match(input, begExcl);
+        let match = _match(input, begExcl);
         if (match === null) { return null; }
         input = input.substr(match.length);
         match = _match(input, begIncl);
         if (match === null) { return null; }
-        var e = _findObserveGroups(input, match.length, endIncl || endExcl);
+        const e = _findObserveGroups(input, match.length, endIncl || endExcl);
         if (e === null) { return null; }
-        var match1 = input.substring(0, (endIncl ? e.endMatchEnd : e.endMatchBegin));
+        const match1 = input.substring(0, (endIncl ? e.endMatchEnd : e.endMatchBegin));
         if (!(beg2Excl || beg2Incl)) {
           return {
             match_: match1,
             remainder: input.substr(e.endMatchEnd)
           };
         } else {
-          var group2 = this.findObserveGroups(input.substr(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
+          const group2 = this.findObserveGroups(input.substr(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
           if (group2 === null) { return null; }
-          /** @type {string[]} */
-          var matchRet = [match1, group2.match_];
+          const matchRet: string[] = [match1, group2.match_];
           return {
             match_: (combine ? matchRet.join("") : matchRet),
             remainder: group2.remainder
@@ -417,23 +402,19 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       // returns null or {match_:"a", remainder:"bc"}
       //
       match_: function (m, input) {
-        var pattern = mhchemParser.patterns.patterns[m];
+        const pattern = _mhchemParser.patterns.patterns[m];
         if (pattern === undefined) {
           throw ["MhchemBugP", "mhchem bug P. Please report. (" + m + ")"];  // Trying to use non-existing pattern
         } else if (typeof pattern === "function") {
-          return mhchemParser.patterns.patterns[m](input);  // cannot use cached var pattern here, because some pattern functions need this===mhchemParser
+          return (_mhchemParser.patterns.patterns[m] as unknown as PatternFunction<string | string[]>)(input);  // cannot use cached variable pattern here, because some pattern functions need this===mhchemParser
         } else {  // RegExp
-          var match = input.match(pattern);
+          const match = input.match(pattern);
           if (match) {
-            var mm;
-            if (match[2]) {
-              mm = [ match[1], match[2] ];
-            } else if (match[1]) {
-              mm = match[1];
+            if (match.length > 2) {
+              return { match_: match.slice(1), remainder: input.substr(match[0].length) };
             } else {
-              mm = match[0];
+              return { match_: match[1] || match[0], remainder: input.substr(match[0].length) };
             }
-            return { match_: mm, remainder: input.substr(match[0].length) };
           }
           return null;
         }
@@ -444,39 +425,38 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
     // Generic state machine actions
     //
     actions: {
-      'a=': function (buffer, m) { buffer.a = (buffer.a || "") + m; },
-      'b=': function (buffer, m) { buffer.b = (buffer.b || "") + m; },
-      'p=': function (buffer, m) { buffer.p = (buffer.p || "") + m; },
-      'o=': function (buffer, m) { buffer.o = (buffer.o || "") + m; },
-      'q=': function (buffer, m) { buffer.q = (buffer.q || "") + m; },
-      'd=': function (buffer, m) { buffer.d = (buffer.d || "") + m; },
-      'rm=': function (buffer, m) { buffer.rm = (buffer.rm || "") + m; },
-      'text=': function (buffer, m) { buffer.text_ = (buffer.text_ || "") + m; },
-      'insert': function (buffer, m, a) { return { type_: a }; },
-      'insert+p1': function (buffer, m, a) { return { type_: a, p1: m }; },
-      'insert+p1+p2': function (buffer, m, a) { return { type_: a, p1: m[0], p2: m[1] }; },
-      'copy': function (buffer, m) { return m; },
-      'rm': function (buffer, m) { return { type_: 'rm', p1: m || ""}; },
-      'text': function (buffer, m) { return mhchemParser.go(m, 'text'); },
-      '{text}': function (buffer, m) {
-        var ret = [ "{" ];
-        mhchemParser.concatArray(ret, mhchemParser.go(m, 'text'));
+      'a=': function (buffer, m) { buffer.a = (buffer.a || "") + m; return undefined; },
+      'b=': function (buffer, m) { buffer.b = (buffer.b || "") + m; return undefined; },
+      'p=': function (buffer, m) { buffer.p = (buffer.p || "") + m; return undefined; },
+      'o=': function (buffer, m) { buffer.o = (buffer.o || "") + m; return undefined; },
+      'q=': function (buffer, m) { buffer.q = (buffer.q || "") + m; return undefined; },
+      'd=': function (buffer, m) { buffer.d = (buffer.d || "") + m; return undefined; },
+      'rm=': function (buffer, m) { buffer.rm = (buffer.rm || "") + m; return undefined; },
+      'text=': function (buffer, m) { buffer.text_ = (buffer.text_ || "") + m; return undefined; },
+      'insert': function ({}, {}, a: string) { return { type_: a } as Parsed; },
+      'insert+p1': function ({}, m, a) { return { type_: a, p1: m } as Parsed; },
+      'insert+p1+p2': function ({}, m, a) { return { type_: a, p1: m[0], p2: m[1] } as Parsed; },
+      'copy': function ({}, m) { return m; },
+      'rm': function ({}, m) { return { type_: 'rm', p1: m }; },
+      'text': function ({}, m) { return _mhchemParser.go(m, 'text'); },
+      '{text}': function ({}, m) {
+        let ret = [ "{" ];
+        _mhchemParser.concatArray(ret, _mhchemParser.go(m, 'text'));
         ret.push("}");
         return ret;
       },
-      'tex-math': function (buffer, m) { return mhchemParser.go(m, 'tex-math'); },
-      'tex-math tight': function (buffer, m) { return mhchemParser.go(m, 'tex-math tight'); },
-      'bond': function (buffer, m, k) { return { type_: 'bond', kind_: k || m }; },
-      'color0-output': function (buffer, m) { return { type_: 'color0', color: m[0] }; },
-      'ce': function (buffer, m) { return mhchemParser.go(m); },
-      '1/2': function (buffer, m) {
-        /** @type {ParserOutput[]} */
-        var ret = [];
+      'tex-math': function ({}, m) { return _mhchemParser.go(m, 'tex-math'); },
+      'tex-math tight': function ({}, m) { return _mhchemParser.go(m, 'tex-math tight'); },
+      'bond': function ({}, m: BondName, k: BondName) { return { type_: 'bond', kind_: k || m }; },
+      'color0-output': function ({}, m) { return { type_: 'color0', color: m }; },
+      'ce': function ({}, m) { return _mhchemParser.go(m); },
+      '1/2': function ({}, m) {
+        let ret: Parsed[] = [];
         if (m.match(/^[+\-]/)) {
           ret.push(m.substr(0, 1));
           m = m.substr(1);
         }
-        var n = m.match(/^([0-9]+|\$[a-z]\$|[a-z])\/([0-9]+)(\$[a-z]\$|[a-z])?$/);
+        const n = m.match(/^([0-9]+|\$[a-z]\$|[a-z])\/([0-9]+)(\$[a-z]\$|[a-z])?$/);
         n[1] = n[1].replace(/\$/g, "");
         ret.push({ type_: 'frac', p1: n[1], p2: n[2] });
         if (n[3]) {
@@ -485,86 +465,18 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         }
         return ret;
       },
-      '9,9': function (buffer, m) { return mhchemParser.go(m, '9,9'); }
+      '9,9': function ({}, m) { return _mhchemParser.go(m, '9,9'); }
     },
-    //
-    // createTransitions
-    // convert  { 'letter': { 'state': { action_: 'output' } } }  to  { 'state' => [ { pattern: 'letter', task: { action_: [{type_: 'output'}] } } ] }
-    // with expansion of 'a|b' to 'a' and 'b' (at 2 places)
-    //
-    createTransitions: function (o) {
-      var pattern, state;
-      /** @type {string[]} */
-      var stateArray;
-      var i;
-      //
-      // 1. Collect all states
-      //
-      /** @type {Transitions} */
-      var transitions = {};
-      for (pattern in o) {
-        for (state in o[pattern]) {
-          stateArray = state.split("|");
-          o[pattern][state].stateArray = stateArray;
-          for (i=0; i<stateArray.length; i++) {
-            transitions[stateArray[i]] = [];
-          }
-        }
-      }
-      //
-      // 2. Fill states
-      //
-      for (pattern in o) {
-        for (state in o[pattern]) {
-          stateArray = o[pattern][state].stateArray || [];
-          for (i=0; i<stateArray.length; i++) {
-            //
-            // 2a. Normalize actions into array:  'text=' ==> [{type_:'text='}]
-            // (Note to myself: Resolving the function here would be problematic. It would need .bind (for *this*) and currying (for *option*).)
-            //
-            /** @type {any} */
-            var p = o[pattern][state];
-            if (p.action_) {
-              p.action_ = [].concat(p.action_);
-              for (var k=0; k<p.action_.length; k++) {
-                if (typeof p.action_[k] === "string") {
-                  p.action_[k] = { type_: p.action_[k] };
-                }
-              }
-            } else {
-              p.action_ = [];
-            }
-            //
-            // 2.b Multi-insert
-            //
-            var patternArray = pattern.split("|");
-            for (var j=0; j<patternArray.length; j++) {
-              if (stateArray[i] === '*') {  // insert into all
-                for (var t in transitions) {
-                  transitions[t].push({ pattern: patternArray[j], task: p });
-                }
-              } else {
-                transitions[stateArray[i]].push({ pattern: patternArray[j], task: p });
-              }
-            }
-          }
-        }
-      }
-      return transitions;
-    },
-    stateMachines: {}
-  };
-
   //
   // Definition of state machines
   //
-  mhchemParser.stateMachines = {
+    stateMachines: {
     //
     // \ce state machines
     //
     //#region ce
     'ce': {  // main parser
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         'else':  {
@@ -631,9 +543,9 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           'q': { action_: [ 'output', 'o=' ], nextState: 'o' },
           'a': { action_: 'o=', nextState: 'o' } },
         'space A': {
-          'b|p|bp': {} },
+          'b|p|bp': { action_: [] } },
         'space': {
-          'a': { nextState: 'as' },
+          'a': { action_: [], nextState: 'as' },
           '0': { action_: 'sb=false' },
           '1|2': { action_: 'sb=true' },
           'r|rt|rd|rdt|rdq': { action_: 'output', nextState: '0' },
@@ -661,7 +573,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         ', ': {
           '*': { action_: [ 'output', 'comma' ], nextState: '0' } },
         '^_': {  // ^ and _ without a sensible argument
-          '*': { } },
+          '*': { action_: [] } },
         '^{(...)}|^($...$)': {
           '0|1|2|as': { action_: 'b=', nextState: 'b' },
           'p': { action_: 'b=', nextState: 'bp' },
@@ -728,55 +640,55 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       }),
       actions: {
         'o after d': function (buffer, m) {
-          var ret;
+          let ret;
           if ((buffer.d || "").match(/^[0-9]+$/)) {
-            var tmp = buffer.d;
+            const tmp = buffer.d;
             buffer.d = undefined;
             ret = this['output'](buffer);
             buffer.b = tmp;
           } else {
             ret = this['output'](buffer);
           }
-          mhchemParser.actions['o='](buffer, m);
+          _mhchemParser.actions['o='](buffer, m);
           return ret;
         },
         'd= kv': function (buffer, m) {
           buffer.d = m;
           buffer.dType = 'kv';
+          return undefined;
         },
-        'charge or bond': function (buffer, m) {
+        'charge or bond': function (buffer, m): undefined | Parsed[] {
           if (buffer['beginsWithBond']) {
-            /** @type {ParserOutput[]} */
-            var ret = [];
-            mhchemParser.concatArray(ret, this['output'](buffer));
-            mhchemParser.concatArray(ret, mhchemParser.actions['bond'](buffer, m, "-"));
+            let ret: Parsed[] = [];
+            _mhchemParser.concatArray(ret, this['output'](buffer));
+            _mhchemParser.concatArray(ret, _mhchemParser.actions['bond'](buffer, m, "-"));
             return ret;
           } else {
             buffer.d = m;
+            return undefined;
           }
         },
         '- after o/d': function (buffer, m, isAfterD) {
-          var c1 = mhchemParser.patterns.match_('orbital', buffer.o || "");
-          var c2 = mhchemParser.patterns.match_('one lowercase greek letter $', buffer.o || "");
-          var c3 = mhchemParser.patterns.match_('one lowercase latin letter $', buffer.o || "");
-          var c4 = mhchemParser.patterns.match_('$one lowercase latin letter$ $', buffer.o || "");
-          var hyphenFollows =  m==="-" && ( c1 && c1.remainder===""  ||  c2  ||  c3  ||  c4 );
+          let c1 = _mhchemParser.patterns.match_('orbital', buffer.o || "");
+          const c2 = _mhchemParser.patterns.match_('one lowercase greek letter $', buffer.o || "");
+          const c3 = _mhchemParser.patterns.match_('one lowercase latin letter $', buffer.o || "");
+          const c4 = _mhchemParser.patterns.match_('$one lowercase latin letter$ $', buffer.o || "");
+          const hyphenFollows =  m==="-" && ( c1 && c1.remainder===""  ||  c2  ||  c3  ||  c4 );
           if (hyphenFollows && !buffer.a && !buffer.b && !buffer.p && !buffer.d && !buffer.q && !c1 && c3) {
             buffer.o = '$' + buffer.o + '$';
           }
-          /** @type {ParserOutput[]} */
-          var ret = [];
+          let ret: Parsed[] = [];
           if (hyphenFollows) {
-            mhchemParser.concatArray(ret, this['output'](buffer));
+            _mhchemParser.concatArray(ret, this['output'](buffer));
             ret.push({ type_: 'hyphen' });
           } else {
-            c1 = mhchemParser.patterns.match_('digits', buffer.d || "");
+            c1 = _mhchemParser.patterns.match_('digits', buffer.d || "");
             if (isAfterD && c1 && c1.remainder==='') {
-              mhchemParser.concatArray(ret, mhchemParser.actions['d='](buffer, m));
-              mhchemParser.concatArray(ret, this['output'](buffer));
+              _mhchemParser.concatArray(ret, _mhchemParser.actions['d='](buffer, m));
+              _mhchemParser.concatArray(ret, this['output'](buffer));
             } else {
-              mhchemParser.concatArray(ret, this['output'](buffer));
-              mhchemParser.concatArray(ret, mhchemParser.actions['bond'](buffer, m, "-"));
+              _mhchemParser.concatArray(ret, this['output'](buffer));
+              _mhchemParser.concatArray(ret, _mhchemParser.actions['bond'](buffer, m, "-"));
             }
           }
           return ret;
@@ -784,32 +696,32 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         'a to o': function (buffer) {
           buffer.o = buffer.a;
           buffer.a = undefined;
+          return undefined;
         },
-        'sb=true': function (buffer) { buffer.sb = true; },
-        'sb=false': function (buffer) { buffer.sb = false; },
-        'beginsWithBond=true': function (buffer) { buffer['beginsWithBond'] = true; },
-        'beginsWithBond=false': function (buffer) { buffer['beginsWithBond'] = false; },
-        'parenthesisLevel++': function (buffer) { buffer['parenthesisLevel']++; },
-        'parenthesisLevel--': function (buffer) { buffer['parenthesisLevel']--; },
-        'state of aggregation': function (buffer, m) {
-          return { type_: 'state of aggregation', p1: mhchemParser.go(m, 'o') };
+        'sb=true': function (buffer) { buffer.sb = true; return undefined; },
+        'sb=false': function (buffer) { buffer.sb = false; return undefined; },
+        'beginsWithBond=true': function (buffer) { buffer['beginsWithBond'] = true; return undefined; },
+        'beginsWithBond=false': function (buffer) { buffer['beginsWithBond'] = false; return undefined; },
+        'parenthesisLevel++': function (buffer) { buffer['parenthesisLevel']++; return undefined; },
+        'parenthesisLevel--': function (buffer) { buffer['parenthesisLevel']--; return undefined; },
+        'state of aggregation': function ({}, m) {
+          return { type_: 'state of aggregation', p1: _mhchemParser.go(m, 'o') };
         },
         'comma': function (buffer, m) {
-          var a = m.replace(/\s*$/, '');
-          var withSpace = (a !== m);
+          const a = m.replace(/\s*$/, '');
+          const withSpace = (a !== m);
           if (withSpace  &&  buffer['parenthesisLevel'] === 0) {
             return { type_: 'comma enumeration L', p1: a };
           } else {
             return { type_: 'comma enumeration M', p1: a };
           }
         },
-        'output': function (buffer, m, entityFollows) {
+        'output': function (buffer, {}, entityFollows) {
           // entityFollows:
           //   undefined = if we have nothing else to output, also ignore the just read space (buffer.sb)
           //   1 = an entity follows, never omit the space if there was one just read before (can only apply to state 1)
           //   2 = 1 + the entity can have an amount, so output a\, instead of converting it to o (can only apply to states a|as)
-          /** @type {ParserOutput | ParserOutput[]} */
-          var ret;
+          let ret: Parsed | Parsed[];
           if (!buffer.r) {
             ret = [];
             if (!buffer.a && !buffer.b && !buffer.p && !buffer.o && !buffer.q && !buffer.d && !entityFollows) {
@@ -827,7 +739,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
                 buffer.q = buffer.p;
                 buffer.a = buffer.b = buffer.p = undefined;
               } else {
-                if (buffer.o && buffer.dType==='kv' && mhchemParser.patterns.match_('d-oxidation$', buffer.d || "")) {
+                if (buffer.o && buffer.dType==='kv' && _mhchemParser.patterns.match_('d-oxidation$', buffer.d || "")) {
                   buffer.dType = 'oxidation';
                 } else if (buffer.o && buffer.dType==='kv' && !buffer.q) {
                   buffer.dType = undefined;
@@ -835,33 +747,31 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
               }
               ret.push({
                 type_: 'chemfive',
-                a: mhchemParser.go(buffer.a, 'a'),
-                b: mhchemParser.go(buffer.b, 'bd'),
-                p: mhchemParser.go(buffer.p, 'pq'),
-                o: mhchemParser.go(buffer.o, 'o'),
-                q: mhchemParser.go(buffer.q, 'pq'),
-                d: mhchemParser.go(buffer.d, (buffer.dType === 'oxidation' ? 'oxidation' : 'bd')),
+                a: _mhchemParser.go(buffer.a, 'a'),
+                b: _mhchemParser.go(buffer.b, 'bd'),
+                p: _mhchemParser.go(buffer.p, 'pq'),
+                o: _mhchemParser.go(buffer.o, 'o'),
+                q: _mhchemParser.go(buffer.q, 'pq'),
+                d: _mhchemParser.go(buffer.d, (buffer.dType === 'oxidation' ? 'oxidation' : 'bd')),
                 dType: buffer.dType
               });
             }
           } else {  // r
-            /** @type {ParserOutput[]} */
-            var rd;
+            let rd: Parsed[];
             if (buffer.rdt === 'M') {
-              rd = mhchemParser.go(buffer.rd, 'tex-math');
+              rd = _mhchemParser.go(buffer.rd, 'tex-math');
             } else if (buffer.rdt === 'T') {
               rd = [ { type_: 'text', p1: buffer.rd || "" } ];
             } else {
-              rd = mhchemParser.go(buffer.rd);
+              rd = _mhchemParser.go(buffer.rd);
             }
-            /** @type {ParserOutput[]} */
-            var rq;
+            let rq: Parsed[];
             if (buffer.rqt === 'M') {
-              rq = mhchemParser.go(buffer.rq, 'tex-math');
+              rq = _mhchemParser.go(buffer.rq, 'tex-math');
             } else if (buffer.rqt === 'T') {
               rq = [ { type_: 'text', p1: buffer.rq || ""} ];
             } else {
-              rq = mhchemParser.go(buffer.rq);
+              rq = _mhchemParser.go(buffer.rq);
             }
             ret = {
               type_: 'arrow',
@@ -870,50 +780,51 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
               rq: rq
             };
           }
-          for (var p in buffer) {
+          for (const p in buffer) {
             if (p !== 'parenthesisLevel'  &&  p !== 'beginsWithBond') {
+              //@ts-ignore
               delete buffer[p];
             }
           }
           return ret;
         },
-        'oxidation-output': function (buffer, m) {
-          var ret = [ "{" ];
-          mhchemParser.concatArray(ret, mhchemParser.go(m, 'oxidation'));
+        'oxidation-output': function ({}, m) {
+          let ret = [ "{" ];
+          _mhchemParser.concatArray(ret, _mhchemParser.go(m, 'oxidation'));
           ret.push("}");
           return ret;
         },
-        'frac-output': function (buffer, m) {
-          return { type_: 'frac-ce', p1: mhchemParser.go(m[0]), p2: mhchemParser.go(m[1]) };
+        'frac-output': function ({}, m) {
+          return { type_: 'frac-ce', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
         },
-        'overset-output': function (buffer, m) {
-          return { type_: 'overset', p1: mhchemParser.go(m[0]), p2: mhchemParser.go(m[1]) };
+        'overset-output': function ({}, m) {
+          return { type_: 'overset', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
         },
-        'underset-output': function (buffer, m) {
-          return { type_: 'underset', p1: mhchemParser.go(m[0]), p2: mhchemParser.go(m[1]) };
+        'underset-output': function ({}, m) {
+          return { type_: 'underset', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
         },
-        'underbrace-output': function (buffer, m) {
-          return { type_: 'underbrace', p1: mhchemParser.go(m[0]), p2: mhchemParser.go(m[1]) };
+        'underbrace-output': function ({}, m) {
+          return { type_: 'underbrace', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
         },
-        'color-output': function (buffer, m) {
-          return { type_: 'color', color1: m[0], color2: mhchemParser.go(m[1]) };
+        'color-output': function ({}, m) {
+          return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1]) };
         },
-        'r=': function (buffer, m) { buffer.r = m; },
-        'rdt=': function (buffer, m) { buffer.rdt = m; },
-        'rd=': function (buffer, m) { buffer.rd = m; },
-        'rqt=': function (buffer, m) { buffer.rqt = m; },
-        'rq=': function (buffer, m) { buffer.rq = m; },
-        'operator': function (buffer, m, p1) { return { type_: 'operator', kind_: (p1 || m) }; }
+        'r=': function (buffer, m: ArrowName) { buffer.r = m; return undefined; },
+        'rdt=': function (buffer, m) { buffer.rdt = m; return undefined; },
+        'rd=': function (buffer, m) { buffer.rd = m; return undefined; },
+        'rqt=': function (buffer, m) { buffer.rqt = m; return undefined; },
+        'rq=': function (buffer, m) { buffer.rq = m; return undefined; },
+        'operator': function ({}, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; }
       }
     },
     'a': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         '1/2$': {
           '0': { action_: '1/2' } },
         'else': {
-          '0': { nextState: '1', revisit: true } },
+          '0': { action_: [], nextState: '1', revisit: true } },
         '$(...)$': {
           '*': { action_: 'tex-math tight', nextState: '1' } },
         ',': {
@@ -924,13 +835,13 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       actions: {}
     },
     'o': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         '1/2$': {
           '0': { action_: '1/2' } },
         'else': {
-          '0': { nextState: '1', revisit: true } },
+          '0': { action_: [], nextState: '1', revisit: true } },
         'letters': {
           '*': { action_: 'rm' } },
         '\\ca': {
@@ -947,7 +858,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       actions: {}
     },
     'text': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         '{...}': {
@@ -962,32 +873,33 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'text=' } }
       }),
       actions: {
-        'output': function (buffer) {
+        'output': function (buffer): undefined | Parsed {
           if (buffer.text_) {
-            /** @type {ParserOutput} */
-            var ret = { type_: 'text', p1: buffer.text_ };
-            for (var p in buffer) { delete buffer[p]; }
+            let ret: Parsed = { type_: 'text', p1: buffer.text_ };
+            //@ts-ignore
+            for (const p in buffer) { delete buffer[p]; }
             return ret;
           }
+          return undefined;
         }
       }
     },
     'pq': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         'state of aggregation $': {
           '*': { action_: 'state of aggregation' } },
         'i$': {
-          '0': { nextState: '!f', revisit: true } },
+          '0': { action_: [], nextState: '!f', revisit: true } },
         '(KV letters),': {
           '0': { action_: 'rm', nextState: '0' } },
         'formula$': {
-          '0': { nextState: 'f', revisit: true } },
+          '0': { action_: [], nextState: 'f', revisit: true } },
         '1/2$': {
           '0': { action_: '1/2' } },
         'else': {
-          '0': { nextState: '!f', revisit: true } },
+          '0': { action_: [], nextState: '!f', revisit: true } },
         '${(...)}$|$(...)$': {
           '*': { action_: 'tex-math' } },
         '{(...)}': {
@@ -1012,24 +924,24 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'copy' } }
       }),
       actions: {
-        'state of aggregation': function (buffer, m) {
-          return { type_: 'state of aggregation subscript', p1: mhchemParser.go(m, 'o') };
+        'state of aggregation': function ({}, m) {
+          return { type_: 'state of aggregation subscript', p1: _mhchemParser.go(m, 'o') };
         },
-        'color-output': function (buffer, m) {
-          return { type_: 'color', color1: m[0], color2: mhchemParser.go(m[1], 'pq') };
+        'color-output': function ({}, m) {
+          return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'pq') };
         }
       }
     },
     'bd': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         'x$': {
-          '0': { nextState: '!f', revisit: true } },
+          '0': { action_: [], nextState: '!f', revisit: true } },
         'formula$': {
-          '0': { nextState: 'f', revisit: true } },
+          '0': { action_: [], nextState: 'f', revisit: true } },
         'else': {
-          '0': { nextState: '!f', revisit: true } },
+          '0': { action_: [], nextState: '!f', revisit: true } },
         '-9.,9 no missing 0': {
           '*': { action_: '9,9' } },
         '.': {
@@ -1058,15 +970,15 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'copy' } }
       }),
       actions: {
-        'color-output': function (buffer, m) {
-          return { type_: 'color', color1: m[0], color2: mhchemParser.go(m[1], 'bd') };
+        'color-output': function ({}, m) {
+          return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'bd') };
         }
       }
     },
     'oxidation': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         'roman numeral': {
           '*': { action_: 'roman-numeral' } },
         '${(...)}$|$(...)$': {
@@ -1075,11 +987,11 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'copy' } }
       }),
       actions: {
-        'roman-numeral': function (buffer, m) { return { type_: 'roman numeral', p1: m || "" }; }
+        'roman-numeral': function ({}, m) { return { type_: 'roman numeral', p1: m }; }
       }
     },
     'tex-math': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         '\\ce{(...)}': {
@@ -1090,18 +1002,19 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'o=' } }
       }),
       actions: {
-        'output': function (buffer) {
+        'output': function (buffer): undefined | Parsed {
           if (buffer.o) {
-            /** @type {ParserOutput} */
-            var ret = { type_: 'tex-math', p1: buffer.o };
-            for (var p in buffer) { delete buffer[p]; }
+            let ret: Parsed = { type_: 'tex-math', p1: buffer.o };
+            //@ts-ignore
+            for (const p in buffer) { delete buffer[p]; }
             return ret;
           }
+          return undefined;
         }
       }
     },
     'tex-math tight': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         '\\ce{(...)}': {
@@ -1114,21 +1027,22 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '*': { action_: 'o=' } }
       }),
       actions: {
-        'tight operator': function (buffer, m) { buffer.o = (buffer.o || "") + "{"+m+"}"; },
-        'output': function (buffer) {
+        'tight operator': function (buffer, m) { buffer.o = (buffer.o || "") + "{"+m+"}"; return undefined; },
+        'output': function (buffer): undefined | Parsed {
           if (buffer.o) {
-            /** @type {ParserOutput} */
-            var ret = { type_: 'tex-math', p1: buffer.o };
-            for (var p in buffer) { delete buffer[p]; }
+            let ret: Parsed = { type_: 'tex-math', p1: buffer.o };
+            //@ts-ignore
+            for (const p in buffer) { delete buffer[p]; }
             return ret;
           }
+          return undefined;
         }
       }
     },
     '9,9': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
-          '*': {} },
+          '*': { action_: [] } },
         ',': {
           '*': { action_: 'comma' } },
         'else': {
@@ -1144,7 +1058,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
     //
     //#region pu
     'pu': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         'space$': {
@@ -1156,7 +1070,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
         '(-)(9.,9)(e)(99)': {
           '0': { action_: 'enumber', nextState: 'a' } },
         'space': {
-          '0|a': {} },
+          '0|a': { action_: [] } },
         'pm-operator': {
           '0|a': { action_: { type_: 'operator', option: '\\pm' }, nextState: '0' } },
         'operator': {
@@ -1171,19 +1085,18 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           '/|q': { action_: 'q=', nextState: 'q' } }
       }),
       actions: {
-        'enumber': function (buffer, m) {
-          /** @type {ParserOutput[]} */
-          var ret = [];
+        'enumber': function ({}, m) {
+          let ret: Parsed[] = [];
           if (m[0] === "+-"  ||  m[0] === "+/-") {
             ret.push("\\pm ");
           } else if (m[0]) {
             ret.push(m[0]);
           }
           if (m[1]) {  // 1.2
-            mhchemParser.concatArray(ret, mhchemParser.go(m[1], 'pu-9,9'));
+            _mhchemParser.concatArray(ret, _mhchemParser.go(m[1], 'pu-9,9'));
             if (m[2]) {
               if (m[2].match(/[,.]/)) {  // 1.23456(0.01111)
-                mhchemParser.concatArray(ret, mhchemParser.go(m[2], 'pu-9,9'));
+                _mhchemParser.concatArray(ret, _mhchemParser.go(m[2], 'pu-9,9'));
               } else {  // 1.23456(1111)  - without spacings
                 ret.push(m[2]);
               }
@@ -1201,27 +1114,25 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           }
           return ret;
         },
-        'number^': function (buffer, m) {
-          /** @type {ParserOutput[]} */
-          var ret = [];
+        'number^': function ({}, m) {
+          let ret: Parsed[] = [];
           if (m[0] === "+-"  ||  m[0] === "+/-") {
             ret.push("\\pm ");
           } else if (m[0]) {
             ret.push(m[0]);
           }
-          mhchemParser.concatArray(ret, mhchemParser.go(m[1], 'pu-9,9'));
-          ret.push("^{"+m[2]+"}");
+          _mhchemParser.concatArray(ret, _mhchemParser.go(m[1], 'pu-9,9'));
+          ret.push("^{" + m[2] + "}");
           return ret;
         },
-        'operator': function (buffer, m, p1) { return { type_: 'operator', kind_: (p1 || m) }; },
+        'operator': function ({}, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; },
         'space': function () { return { type_: 'pu-space-1' }; },
         'output': function (buffer) {
-          /** @type {ParserOutput | ParserOutput[]} */
-          var ret;
-          var md = mhchemParser.patterns.match_('{(...)}', buffer.d || "");
-          if (md  &&  md.remainder === '') { buffer.d = md.match_; }
-          var mq = mhchemParser.patterns.match_('{(...)}', buffer.q || "");
-          if (mq  &&  mq.remainder === '') { buffer.q = mq.match_; }
+          let ret: Parsed | Parsed[];
+          const md = _mhchemParser.patterns.match_('{(...)}', buffer.d || "");
+          if (md  &&  md.remainder === '') { buffer.d = md.match_ as string; }
+          const mq = _mhchemParser.patterns.match_('{(...)}', buffer.q || "");
+          if (mq  &&  mq.remainder === '') { buffer.q = mq.match_ as string; }
           if (buffer.d) {
             buffer.d = buffer.d.replace(/\u00B0C|\^oC|\^{o}C/g, "{}^{\\circ}C");
             buffer.d = buffer.d.replace(/\u00B0F|\^oF|\^{o}F/g, "{}^{\\circ}F");
@@ -1229,9 +1140,9 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           if (buffer.q) {  // fraction
             buffer.q = buffer.q.replace(/\u00B0C|\^oC|\^{o}C/g, "{}^{\\circ}C");
             buffer.q = buffer.q.replace(/\u00B0F|\^oF|\^{o}F/g, "{}^{\\circ}F");
-            var b5 = {
-              d: mhchemParser.go(buffer.d, 'pu'),
-              q: mhchemParser.go(buffer.q, 'pu')
+            const b5 = {
+              d: _mhchemParser.go(buffer.d, 'pu'),
+              q: _mhchemParser.go(buffer.q, 'pu')
             };
             if (buffer.o === '//') {
               ret = { type_: 'pu-frac', p1: b5.d, p2: b5.q };
@@ -1242,18 +1153,19 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
               } else {
                 ret.push({ type_: '/' });
               }
-              mhchemParser.concatArray(ret, b5.q);
+              _mhchemParser.concatArray(ret, b5.q);
             }
           } else {  // no fraction
-            ret = mhchemParser.go(buffer.d, 'pu-2');
+            ret = _mhchemParser.go(buffer.d, 'pu-2');
           }
-          for (var p in buffer) { delete buffer[p]; }
+          //@ts-ignore
+          for (const p in buffer) { delete buffer[p]; }
           return ret;
         }
       }
     },
     'pu-2': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '*': { action_: 'output' } },
         '*': {
@@ -1272,26 +1184,26 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       }),
       actions: {
         'cdot': function () { return { type_: 'tight cdot' }; },
-        '^(-1)': function (buffer, m) { buffer.rm += "^{"+m+"}"; },
+        '^(-1)': function (buffer, m) { buffer.rm += "^{"+m+"}"; return undefined; },
         'space': function () { return { type_: 'pu-space-2' }; },
         'output': function (buffer) {
-          /** @type {ParserOutput | ParserOutput[]} */
-          var ret = [];
+          let ret: Parsed | Parsed[] = [];
           if (buffer.rm) {
-            var mrm = mhchemParser.patterns.match_('{(...)}', buffer.rm || "");
+            const mrm = _mhchemParser.patterns.match_('{(...)}', buffer.rm || "") as MatchResult<string>;
             if (mrm  &&  mrm.remainder === '') {
-              ret = mhchemParser.go(mrm.match_, 'pu');
+              ret = _mhchemParser.go(mrm.match_, 'pu');
             } else {
               ret = { type_: 'rm', p1: buffer.rm };
             }
           }
-          for (var p in buffer) { delete buffer[p]; }
+          //@ts-ignore
+          for (const p in buffer) { delete buffer[p]; }
           return ret;
         }
       }
     },
     'pu-9,9': {
-      transitions: mhchemParser.createTransitions({
+      transitions: mhchemCreateTransitions({
         'empty': {
           '0': { action_: 'output-0' },
           'o': { action_: 'output-o' } },
@@ -1305,13 +1217,12 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       actions: {
         'comma': function () { return { type_: 'commaDecimal' }; },
         'output-0': function (buffer) {
-          /** @type {ParserOutput[]} */
-          var ret = [];
+          let ret: Parsed[] = [];
           buffer.text_ = buffer.text_ || "";
           if (buffer.text_.length > 4) {
-            var a = buffer.text_.length % 3;
+            let a = buffer.text_.length % 3;
             if (a === 0) { a = 3; }
-            for (var i=buffer.text_.length-3; i>0; i-=3) {
+            for (let i=buffer.text_.length-3; i>0; i-=3) {
               ret.push(buffer.text_.substr(i, 3));
               ret.push({ type_: '1000 separator' });
             }
@@ -1320,16 +1231,17 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           } else {
             ret.push(buffer.text_);
           }
-          for (var p in buffer) { delete buffer[p]; }
+          //@ts-ignore
+          for (const p in buffer) { delete buffer[p]; }
           return ret;
         },
         'output-o': function (buffer) {
-          /** @type {ParserOutput[]} */
-          var ret = [];
+          let ret: Parsed[] = [];
           buffer.text_ = buffer.text_ || "";
           if (buffer.text_.length > 4) {
-            var a = buffer.text_.length - 3;
-            for (var i=0; i<a; i+=3) {
+            const a = buffer.text_.length - 3;
+            let i: number;
+            for (i=0; i<a; i+=3) {
               ret.push(buffer.text_.substr(i, 3));
               ret.push({ type_: '1000 separator' });
             }
@@ -1337,29 +1249,30 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           } else {
             ret.push(buffer.text_);
           }
-          for (var p in buffer) { delete buffer[p]; }
+          //@ts-ignore
+          for (const p in buffer) { delete buffer[p]; }
           return ret;
         }
       }
     }
     //#endregion
+  }
   };
 
   //
-  // texify: Take MhchemParser output and convert it to TeX
+  // mhchemTexify: Take MhchemParser output and convert it to TeX
   //
-  /** @type {Texify} */
-  var texify = {
+  const _mhchemTexify: MhchemTexify = {
     go: function (input, isInner) {  // (recursive, max 4 levels)
       if (!input) { return ""; }
-      var res = "";
-      var cee = false;
-      for (var i=0; i < input.length; i++) {
-        var inputi = input[i];
+      let res = "";
+      let cee = false;
+      for (let i=0; i < input.length; i++) {
+        const inputi = input[i];
         if (typeof inputi === "string") {
           res += inputi;
         } else {
-          res += texify._go2(inputi);
+          res += _mhchemTexify._go2(inputi);
           if (inputi.type_ === '1st-level escape') { cee = true; }
         }
       }
@@ -1369,22 +1282,20 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
       return res;
     },
     _goInner: function (input) {
-      if (!input) { return input; }
-      return texify.go(input, true);
+      return _mhchemTexify.go(input, true);
     },
     _go2: function (buf) {
-      /** @type {undefined | string} */
-      var res;
+      let res: string;
       switch (buf.type_) {
         case 'chemfive':
           res = "";
-          var b5 = {
-            a: texify._goInner(buf.a),
-            b: texify._goInner(buf.b),
-            p: texify._goInner(buf.p),
-            o: texify._goInner(buf.o),
-            q: texify._goInner(buf.q),
-            d: texify._goInner(buf.d)
+          const b5 = {
+            a: _mhchemTexify._goInner(buf.a),
+            b: _mhchemTexify._goInner(buf.b),
+            p: _mhchemTexify._goInner(buf.p),
+            o: _mhchemTexify._goInner(buf.o),
+            q: _mhchemTexify._goInner(buf.q),
+            d: _mhchemTexify._goInner(buf.d)
           };
           //
           // a
@@ -1458,52 +1369,52 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           res = "\\mathrm{"+buf.p1+"}";
           break;
         case 'state of aggregation':
-          res = "\\mskip2mu "+texify._goInner(buf.p1);
+          res = "\\mskip2mu "+_mhchemTexify._goInner(buf.p1);
           break;
         case 'state of aggregation subscript':
-          res = "\\mskip1mu "+texify._goInner(buf.p1);
+          res = "\\mskip1mu "+_mhchemTexify._goInner(buf.p1);
           break;
         case 'bond':
-          res = texify._getBond(buf.kind_);
+          res = _mhchemTexify._getBond(buf.kind_);
           if (!res) {
             throw ["MhchemErrorBond", "mhchem Error. Unknown bond type (" + buf.kind_ + ")"];
           }
           break;
         case 'frac':
-          var c = "\\frac{" + buf.p1 + "}{" + buf.p2 + "}";
+          const c = "\\frac{" + buf.p1 + "}{" + buf.p2 + "}";
           res = "\\mathchoice{\\textstyle"+c+"}{"+c+"}{"+c+"}{"+c+"}";
           break;
         case 'pu-frac':
-          var d = "\\frac{" + texify._goInner(buf.p1) + "}{" + texify._goInner(buf.p2) + "}";
+          const d = "\\frac{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
           res = "\\mathchoice{\\textstyle"+d+"}{"+d+"}{"+d+"}{"+d+"}";
           break;
         case 'tex-math':
           res = buf.p1 + " ";
           break;
         case 'frac-ce':
-          res = "\\frac{" + texify._goInner(buf.p1) + "}{" + texify._goInner(buf.p2) + "}";
+          res = "\\frac{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
           break;
         case 'overset':
-          res = "\\overset{" + texify._goInner(buf.p1) + "}{" + texify._goInner(buf.p2) + "}";
+          res = "\\overset{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
           break;
         case 'underset':
-          res = "\\underset{" + texify._goInner(buf.p1) + "}{" + texify._goInner(buf.p2) + "}";
+          res = "\\underset{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
           break;
         case 'underbrace':
-          res =  "\\underbrace{" + texify._goInner(buf.p1) + "}_{" + texify._goInner(buf.p2) + "}";
+          res =  "\\underbrace{" + _mhchemTexify._goInner(buf.p1) + "}_{" + _mhchemTexify._goInner(buf.p2) + "}";
           break;
         case 'color':
-          res = "{\\color{" + buf.color1 + "}{" + texify._goInner(buf.color2) + "}}";
+          res = "{\\color{" + buf.color1 + "}{" + _mhchemTexify._goInner(buf.color2) + "}}";
           break;
         case 'color0':
           res = "\\color{" + buf.color + "}";
           break;
         case 'arrow':
-          var b6 = {
-            rd: texify._goInner(buf.rd),
-            rq: texify._goInner(buf.rq)
-          };
-          var arrow = texify._getArrow(buf.r);
+          const b6 = {
+            rd: _mhchemTexify._goInner(buf.rd),
+            rq: _mhchemTexify._goInner(buf.rq)
+          } as const;
+          let arrow = _mhchemTexify._getArrow(buf.r);
           if (b6.rd || b6.rq) {
             if (buf.r === "<=>"  ||  buf.r === "<=>>"  ||  buf.r === "<<=>"  ||  buf.r === "<-->") {
               // arrows that cannot stretch correctly yet, https://github.com/mathjax/MathJax/issues/1491
@@ -1528,7 +1439,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           res = arrow;
           break;
         case 'operator':
-          res = texify._getOperator(buf.kind_);
+          res = _mhchemTexify._getOperator(buf.kind_);
           break;
         case '1st-level escape':
           res = buf.p1+" ";  // &, \\\\, \\hlin
@@ -1604,9 +1515,8 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
           break;
         default:
           assertNever(buf);
-          throw ["MhchemBugT", "mhchem bug T. Please report."];  // Missing texify rule or unknown MhchemParser output
+          throw ["MhchemBugT", "mhchem bug T. Please report."];  // Missing mhchemTexify rule or unknown MhchemParser output
       }
-      assertString(res);
       return res;
     },
     _getArrow: function (a) {
@@ -1677,98 +1587,5 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready", function () {
   // Helpers for code anaylsis
   // Will show type error at calling position
   //
-  /** @param {number} a */
-  function assertNever(a) {}
-  /** @param {string} a */
-  function assertString(a) {}
-
-  //
-  // MathJax definitions
-  //
-  MathJax.Extension["TeX/mhchem"].CE = CE;
-
-  /***************************************************************************/
-
-  TEX.Definitions.Add({
-    macros: {
-      //
-      //  Set up the macros for chemistry
-      //
-      ce: "CE",
-      pu: "PU",
-
-      //
-      //  Make these load AMSmath package (redefined below when loaded)
-      //
-      xleftrightarrow:    ["Extension", "AMSmath"],
-      xrightleftharpoons: ["Extension", "AMSmath"],
-      xRightleftharpoons: ["Extension", "AMSmath"],
-      xLeftrightharpoons: ["Extension", "AMSmath"],
-
-      //  FIXME:  These don't work well in FF NativeMML mode
-      longrightleftharpoons: ["Macro", "\\stackrel{\\textstyle{-}\\!\\!{\\rightharpoonup}}{\\smash{{\\leftharpoondown}\\!\\!{-}}}"],
-      longRightleftharpoons: ["Macro", "\\stackrel{\\textstyle{-}\\!\\!{\\rightharpoonup}}{\\smash{\\leftharpoondown}}"],
-      longLeftrightharpoons: ["Macro", "\\stackrel{\\textstyle\\vphantom{{-}}{\\rightharpoonup}}{\\smash{{\\leftharpoondown}\\!\\!{-}}}"],
-      longleftrightarrows:   ["Macro", "\\raise-3mu{\\stackrel{\\longrightarrow}{\\raise2mu{\\smash{\\longleftarrow}}}}"],
-
-      //
-      //  Needed for \bond for the ~ forms
-      //  Not perfectly aligned when zoomed in, but on 100%
-      //
-      tripledash: ["Macro", "\\vphantom{-}\\raise2mu{\\kern2mu\\tiny\\text{-}\\kern1mu\\text{-}\\kern1mu\\text{-}\\kern2mu}"]
-    }
-  }, null, true);
-
-  if (!MathJax.Extension["TeX/AMSmath"]) {
-    TEX.Definitions.Add({
-      macros: {
-        xrightarrow: ["Extension", "AMSmath"],
-        xleftarrow:  ["Extension", "AMSmath"]
-      }
-    }, null, true);
-  }
-
-  //
-  //  These arrows need to wait until AMSmath is loaded
-  //
-  MathJax.Hub.Register.StartupHook("TeX AMSmath Ready", function () {
-    TEX.Definitions.Add({
-      macros: {
-        //
-        //  Some of these are hacks for now
-        //
-        xleftrightarrow:    ["xArrow", 0x2194, 6, 6],
-        xrightleftharpoons: ["xArrow", 0x21CC, 5, 7],  // FIXME:  doesn't stretch in HTML-CSS output
-        xRightleftharpoons: ["xArrow", 0x21CC, 5, 7],  // FIXME:  how should this be handled?
-        xLeftrightharpoons: ["xArrow", 0x21CC, 5, 7]
-      }
-    }, null, true);
-  });
-
-  TEX.Parse.Augment({
-
-    //
-    //  Implements \ce and friends
-    //
-    CE: function (name) {
-      var arg = this.GetArgument(name);
-      var tex = CE(arg).Parse();
-      this.string = tex + this.string.substr(this.i); this.i = 0;
-    },
-
-    PU: function (name) {
-      var arg = this.GetArgument(name);
-      var tex = CE(arg).Parse('pu');
-      this.string = tex + this.string.substr(this.i); this.i = 0;
-    }
-
-  });
-
-  //
-  //  Indicate that the extension is ready
-  //
-  MathJax.Hub.Startup.signal.Post("TeX mhchem Ready");
-
-});
-
-MathJax.Ajax.loadComplete("[mhchem]/unpacked/mhchem.js");
+  //@ts-ignore
+  function assertNever(a: number) {}
