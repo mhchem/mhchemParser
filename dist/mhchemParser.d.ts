@@ -31,5 +31,5 @@
  *
  */
 export declare const mhchemParser: {
-    toTex: (input: string, type?: "ce" | "pu") => string;
+    toTex: (input: string, type: "tex" | "ce" | "pu") => string;
 };

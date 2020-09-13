@@ -1,8 +1,8 @@
 # mhchem Parser
 
-This is the parser to convert mhchem syntax to LaTeX syntax, for downstream inclusion in [MathJax](https://mathjax.org), [KaTeX](https://katex.org) and similar projects.
-
 mhchem an input syntax for typesetting chemical equations and physical units.
+
+This is the parser to convert mhchem syntax to LaTeX syntax, for downstream inclusion in [MathJax](https://mathjax.org), [KaTeX](https://katex.org) and similar projects.
 
 
 ## Usage
@@ -12,47 +12,27 @@ Users of MathJax and KaTex can write
     \ce{CO2 + C -> 2 CO}
     \pu{123 kJ*mol-1}
 
-For a hundred more features, see
-[the manual](https://mhchem.github.io/MathJax-mhchem/)
-(including a live test drive at the bottom of the page).
-
-
-### Configuration of MathJax
-
-For how to make the `\ce` command available in MathJax,
-see the [official MathJax docs](http://docs.mathjax.org/en/latest/input/tex/extensions/mhchem.html).
-In short, use this config:
-
-    window.MathJax = {
-      loader: {load: ['[tex]/mhchem']},
-      tex: {packages: {'[+]': ['mhchem']}}
-    };
-
-Alternatively, use `\require{mhchem}` in a TeX expression to load it dynamically from within the math on the page, if the require extension is loaded.
-
-
-### Configuration of KaTeX
-
-For how to make the `\ce` command available,
-see the [KaTeX docs](https://github.com/KaTeX/KaTeX/blob/master/contrib/mhchem/README.md).
-Just write this line into your pages's `<head>`, after the call to `katex.js`:
-
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.10.1/dist/contrib/mhchem.min.js"></script>
+For a hundred more features and how to configure MathJax or KaTeX, see
+[the manual](https://mhchem.github.io/MathJax-mhchem/).
 
 
 ## Usage for Downstream Software
 
-A call of
+For "translating" the `\ce` syntax, make a call like
 
-    mhchemParser.toTex("CO2 + C -> 2 CO");
+    mhchemParser.toTex("CO2 + C -> 2 CO", "ce");
 
-will return
+This will return
 
     "{\mathrm{CO}{\vphantom{X}}_{\smash[t]{2}} {}+{} \mathrm{C} {}\mathrel{\longrightarrow}{} 2\,\mathrm{CO}}"
 
-For the `\pu` syntax, call
+For the `\pu` command, call
 
     mhchemParser.toTex("123 kJ*mol-1", "pu");
+
+You could also insert a TeX string. All instances of `\ce` and `\pu` will be replaced in the returned value. This might make integration easier, because the mhchem parser does not need to be called from the TeX parser.
+
+    mhchemParser.toTex("m_{\\ce{H2O}}", "tex");
 
 
 ## Changes compared to MathJax v2.6.0 "legacy: true"

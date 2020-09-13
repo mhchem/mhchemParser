@@ -1,5 +1,5 @@
 interface MhchemParser {
-	go: { (input: string | undefined, stateMachine?: StateMachineName): Parsed[]; };
+	go: { (input: string | undefined, stateMachine: StateMachineName): Parsed[]; };
 	concatArray: { (a: any[], b: any): void };
 	patterns: {
 		patterns: {
@@ -30,7 +30,7 @@ interface MhchemParser {
 }
 
 type PatternFunction<T> = (input: string) => MatchResult<T> | null;
-type StateMachineName = "ce" | "a" | "o" | "text" | "pq" | "bd" | "oxidation" | "tex-math" | "tex-math tight" | "9,9" | "pu" | "pu-2" | "pu-9,9";
+type StateMachineName = "tex" | "ce" | "a" | "o" | "text" | "pq" | "bd" | "oxidation" | "tex-math" | "tex-math tight" | "9,9" | "pu" | "pu-2" | "pu-9,9";
 type MatchResult<T> = {
 	match_: T;
 	remainder: string;
@@ -112,7 +112,7 @@ type TransitionsRaw = {
 	}
 }
 type PatternNameReturningString =
-	"empty" | "else" | "else2" | "space" | "space A" | "space$" | "a-z" | "x" | "x$" | "i$" | "letters" | "\\greek" | "one lowercase latin letter $" | "$one lowercase latin letter$ $" | "one lowercase greek letter $" | "digits" | "-9.,9" | "-9.,9 no missing 0" | "state of aggregation $" | "{[(" | ")]}" | ", " | "," | "." | ". __* " | "..." | "^{(...)}" | "^($...$)" | "^a" | "^\\x{}" | "^\\x" | "^(-1)" | "\'" | "_{(...)}" | "_($...$)" | "_9" | "_\\x{}{}" | "_\\x{}" | "_\\x" | "^_" | "{}" | "{...}" | "{(...)}" | "$...$" | "${(...)}$__$(...)$" | "=<>" | "#" | "+" | "-$" | "-9" | "- orbital overlap" | "-" | "pm-operator" | "operator" | "arrowUpDown" | "\\bond{(...)}" | "->" | "CMT" | "[(...)]" | "1st-level escape" | "\\," |  "\\x{}" | "\\ca" | "\\x" | "orbital" | "others" | "\\color{(...)}" | "\\ce{(...)}" | "oxidation$" | "d-oxidation$" | "roman numeral" | "1/2$" | "amount" | "amount2" | "(KV letters)," | "formula$" | "uprightEntities" | "/" | "//" | "*" | "\\x{}{}" | "^\\x{}{}" |
+	"empty" | "else" | "else2" | "space" | "space A" | "space$" | "a-z" | "x" | "x$" | "i$" | "letters" | "\\greek" | "one lowercase latin letter $" | "$one lowercase latin letter$ $" | "one lowercase greek letter $" | "digits" | "-9.,9" | "-9.,9 no missing 0" | "state of aggregation $" | "{[(" | ")]}" | ", " | "," | "." | ". __* " | "..." | "^{(...)}" | "^($...$)" | "^a" | "^\\x{}" | "^\\x" | "^(-1)" | "\'" | "_{(...)}" | "_($...$)" | "_9" | "_\\x{}{}" | "_\\x{}" | "_\\x" | "^_" | "{}" | "{...}" | "{(...)}" | "$...$" | "${(...)}$__$(...)$" | "=<>" | "#" | "+" | "-$" | "-9" | "- orbital overlap" | "-" | "pm-operator" | "operator" | "arrowUpDown" | "\\bond{(...)}" | "->" | "CMT" | "[(...)]" | "1st-level escape" | "\\," |  "\\x{}" | "\\ca" | "\\x" | "orbital" | "others" | "\\color{(...)}" | "\\ce{(...)}" | "\\pu{(...)}" | "oxidation$" | "d-oxidation$" | "roman numeral" | "1/2$" | "amount" | "amount2" | "(KV letters)," | "formula$" | "uprightEntities" | "/" | "//" | "*" | "\\x{}{}" | "^\\x{}{}" |
 	"^{(...)}|^($...$)" | "^a|^\\x{}{}|^\\x{}|^\\x|\'" | "_{(...)}|_($...$)|_9|_\\x{}{}|_\\x{}|_\\x" | "\\,|\\x{}{}|\\x{}|\\x" | "{...}|\\,|\\x{}{}|\\x{}|\\x" | "\\x{}{}|\\x{}|\\x" | "-|+" | "{[(|)]}" | "{...}|else" | "^{(...)}|^(-1)";
 type PatternNameReturningArray2 = "_{(state of aggregation)}$" | "\\frac{(...)}" | "\\overset{(...)}" | "\\underset{(...)}" | "\\underbrace{(...)}" | "\\color{(...)}{(...)}";
 type PatternNameReturningArray3 = "(-)(9)^(-9)";
@@ -120,8 +120,8 @@ type PatternNameReturningArray6 = "(-)(9.,9)(e)(99)";
 type PatternName = PatternNameReturningString | PatternNameReturningArray2 | PatternNameReturningArray3 | PatternNameReturningArray6;
 type PatternNameReturningArray = PatternNameReturningArray2 | PatternNameReturningArray3 | PatternNameReturningArray6;
 type ActionNameUsingMNone = "a to o" | "sb=true" | "sb=false" | "beginsWithBond=true" | "beginsWithBond=false" | "parenthesisLevel++" | "parenthesisLevel--" | "output" | "space" | "cdot" | "output-0" | "output-o" | "tight operator";
-type ActionNameUsingMString = "a=" | "b=" | "p=" | "o=" | "q=" | "d=" | "rm=" | "text=" | "copy" | "rm" | "text" | "{text}" | "tex-math" | "tex-math tight" | "ce" | "1/2" | "9,9" | "o after d" | "d= kv" | "charge or bond" | "state of aggregation" | "comma" | "oxidation-output" | "r=" | "rdt=" | "rd=" | "rqt=" | "rq=" | "operator" | "bond" | "color0-output" | "roman-numeral" | "^(-1)";
-type ActionNameUsingMStringOption =  "insert" | "insert+p1" | "bond" | "- after o/d";
+type ActionNameUsingMString = "a=" | "b=" | "p=" | "o=" | "q=" | "d=" | "rm=" | "text=" | "copy" | "rm" | "text" | "tex-math" | "tex-math tight" | "ce" | "pu" | "1/2" | "9,9" | "o after d" | "d= kv" | "charge or bond" | "state of aggregation" | "comma" | "oxidation-output" | "r=" | "rdt=" | "rd=" | "rqt=" | "rq=" | "operator" | "bond" | "color0-output" | "roman-numeral" | "^(-1)";
+type ActionNameUsingMStringOption =  "insert" | "insert+p1" |  "write" | "bond" | "- after o/d";
 type ActionNameUsingMArray2 = "insert+p1+p2" | "frac-output" | "overset-output" | "underset-output" | "underbrace-output"  | "color-output";
 type ActionNameUsingMArray3 = "number^";
 type ActionNameUsingMArray6 = "enumber";

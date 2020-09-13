@@ -32,8 +32,8 @@
  */
 
 export const mhchemParser = {
-	toTex: function (input: string, type?: "ce" | "pu"): string {
-		return _mhchemTexify.go(_mhchemParser.go(input, type));
+	toTex: function (input: string, type: "tex" | "ce" | "pu"): string {
+		return _mhchemTexify.go(_mhchemParser.go(input, type), type !== "tex");
 	}
 }
 
@@ -305,6 +305,7 @@ const _mhchemParser: MhchemParser = {
 					_mhchemParser.patterns.findObserveGroups(input, "\\color", "\\", "", /^(?=\{)/, "{", "", "", "}");
 			} as PatternFunction<string[]>,
 			'\\ce{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\ce{", "", "", "}"); } as PatternFunction<string>,
+			'\\pu{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "\\pu{", "", "", "}"); } as PatternFunction<string>,
 			'oxidation$': /^(?:[+-][IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,
 			'd-oxidation$': /^(?:[+-]?\s?[IVX]+|\\pm\s*0|\$\\pm\$\s*0)$/,  // 0 could be oxidation or charge
 			'roman numeral': /^[IVX]+/,
@@ -439,19 +440,15 @@ const _mhchemParser: MhchemParser = {
 		'insert+p1': function ({}, m, a) { return { type_: a, p1: m } as Parsed; },
 		'insert+p1+p2': function ({}, m, a) { return { type_: a, p1: m[0], p2: m[1] } as Parsed; },
 		'copy': function ({}, m) { return m; },
+		'write': function ({}, {}, a: string) { return a; },
 		'rm': function ({}, m) { return { type_: 'rm', p1: m }; },
 		'text': function ({}, m) { return _mhchemParser.go(m, 'text'); },
-		'{text}': function ({}, m) {
-			let ret = [ "{" ];
-			_mhchemParser.concatArray(ret, _mhchemParser.go(m, 'text'));
-			ret.push("}");
-			return ret;
-		},
 		'tex-math': function ({}, m) { return _mhchemParser.go(m, 'tex-math'); },
 		'tex-math tight': function ({}, m) { return _mhchemParser.go(m, 'tex-math tight'); },
 		'bond': function ({}, m: BondName, k: BondName) { return { type_: 'bond', kind_: k || m }; },
 		'color0-output': function ({}, m) { return { type_: 'color0', color: m }; },
-		'ce': function ({}, m) { return _mhchemParser.go(m); },
+		'ce': function ({}, m) { return _mhchemParser.go(m, 'ce'); },
+		'pu': function ({}, m) { return _mhchemParser.go(m, 'pu'); },
 		'1/2': function ({}, m) {
 			let ret: Parsed[] = [];
 			if (m.match(/^[+\-]/)) {
@@ -473,6 +470,22 @@ const _mhchemParser: MhchemParser = {
 // Definition of state machines
 //
 	stateMachines: {
+	//
+	// TeX state machine
+	//
+	'tex': {
+		transitions: mhchemCreateTransitions({
+			'empty': {
+				'0': { action_: 'copy' } },
+			'\\ce{(...)}': {
+				'0': { action_: [ { type_: 'write', option: "{" }, 'ce', { type_: 'write', option: "}" }] } },
+			'\\pu{(...)}': {
+				'0': { action_: [ { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" }] } },
+			'else': {
+				'0': { action_: 'copy' } },
+		}),
+		actions: {}
+	},
 	//
 	// \ce state machines
 	//
@@ -629,6 +642,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: [ { type_: 'output', option: 2 }, 'ce' ], nextState: '3' } },
 			'\\,': {
 				'*': { action_: [ { type_: 'output', option: 1 }, 'copy' ], nextState: '1' } },
+			'\\pu{(...)}': {
+				'*': { action_: [ 'output', { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ], nextState: '3' } },
 			'\\x{}{}|\\x{}|\\x': {
 				'0|1|2|3|a|as|b|p|bp|o|c0': { action_: [ 'o=', 'output' ], nextState: '3' },
 				'*': { action_: ['output', 'o=', 'output' ], nextState: '3' } },
@@ -765,7 +780,7 @@ const _mhchemParser: MhchemParser = {
 					} else if (buffer.rdt === 'T') {
 						rd = [ { type_: 'text', p1: buffer.rd || "" } ];
 					} else {
-						rd = _mhchemParser.go(buffer.rd);
+						rd = _mhchemParser.go(buffer.rd, 'ce');
 					}
 					let rq: Parsed[];
 					if (buffer.rqt === 'M') {
@@ -773,7 +788,7 @@ const _mhchemParser: MhchemParser = {
 					} else if (buffer.rqt === 'T') {
 						rq = [ { type_: 'text', p1: buffer.rq || ""} ];
 					} else {
-						rq = _mhchemParser.go(buffer.rq);
+						rq = _mhchemParser.go(buffer.rq, 'ce');
 					}
 					ret = {
 						type_: 'arrow',
@@ -797,19 +812,19 @@ const _mhchemParser: MhchemParser = {
 				return ret;
 			},
 			'frac-output': function ({}, m) {
-				return { type_: 'frac-ce', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
+				return { type_: 'frac-ce', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'overset-output': function ({}, m) {
-				return { type_: 'overset', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
+				return { type_: 'overset', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'underset-output': function ({}, m) {
-				return { type_: 'underset', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
+				return { type_: 'underset', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'underbrace-output': function ({}, m) {
-				return { type_: 'underbrace', p1: _mhchemParser.go(m[0]), p2: _mhchemParser.go(m[1]) };
+				return { type_: 'underbrace', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'color-output': function ({}, m) {
-				return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1]) };
+				return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'r=': function (buffer, m: ArrowName) { buffer.r = m; return undefined; },
 			'rdt=': function (buffer, m) { buffer.rdt = m; return undefined; },
@@ -848,12 +863,14 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'rm' } },
 			'\\ca': {
 				'*': { action_: { type_: 'insert', option: 'circa' } } },
+			'\\pu{(...)}': {
+				'*': { action_: [ { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'copy' } },
 			'${(...)}$__$(...)$': {
 				'*': { action_: 'tex-math' } },
 			'{(...)}': {
-				'*': { action_: '{text}' } },
+				'*': { action_: [ { type_: 'write', option: "{" }, 'text', { type_: 'write', option: "}" } ] } },
 			'else2': {
 				'*': { action_: 'copy' } }
 		}),
@@ -869,6 +886,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'tex-math' } },
 			'\\greek': {
 				'*': { action_: [ 'output', 'rm' ] } },
+			'\\pu{(...)}': {
+				'*': { action_: [ 'output', { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'\\,|\\x{}{}|\\x{}|\\x': {
 				'*': { action_: [ 'output', 'copy' ] } },
 			'else': {
@@ -920,6 +939,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'color0-output' } },
 			'\\ce{(...)}': {
 				'*': { action_: 'ce' } },
+			'\\pu{(...)}': {
+				'*': { action_: [ { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'\\,|\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'copy' } },
 			'else2': {
@@ -966,6 +987,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'color0-output' } },
 			'\\ce{(...)}': {
 				'*': { action_: 'ce' } },
+			'\\pu{(...)}': {
+				'*': { action_: [ { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'\\,|\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'copy' } },
 			'else2': {
@@ -998,6 +1021,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'output' } },
 			'\\ce{(...)}': {
 				'*': { action_: [ 'output', 'ce' ] } },
+			'\\pu{(...)}': {
+				'*': { action_: [ 'output', { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'{...}|\\,|\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'o=' } },
 			'else': {
@@ -1021,6 +1046,8 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'output' } },
 			'\\ce{(...)}': {
 				'*': { action_: [ 'output', 'ce' ] } },
+			'\\pu{(...)}': {
+				'*': { action_: [ 'output', { type_: 'write', option: "{" }, 'pu', { type_: 'write', option: "}" } ] } },
 			'{...}|\\,|\\x{}{}|\\x{}|\\x': {
 				'*': { action_: 'o=' } },
 			'-|+': {
@@ -1265,7 +1292,7 @@ const _mhchemParser: MhchemParser = {
 // mhchemTexify: Take MhchemParser output and convert it to TeX
 //
 const _mhchemTexify: MhchemTexify = {
-	go: function (input, isInner) {  // (recursive, max 4 levels)
+	go: function (input, addOuterBraces) {  // (recursive, max 4 levels)
 		if (!input) { return ""; }
 		let res = "";
 		let cee = false;
@@ -1278,13 +1305,13 @@ const _mhchemTexify: MhchemTexify = {
 				if (inputi.type_ === '1st-level escape') { cee = true; }
 			}
 		}
-		if (!isInner && !cee && res) {
+		if (addOuterBraces && !cee && res) {
 			res = "{" + res + "}";
 		}
 		return res;
 	},
 	_goInner: function (input) {
-		return _mhchemTexify.go(input, true);
+		return _mhchemTexify.go(input, false);
 	},
 	_go2: function (buf) {
 		let res: string;
