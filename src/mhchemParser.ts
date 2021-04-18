@@ -436,20 +436,20 @@ const _mhchemParser: MhchemParser = {
 		'd=': function (buffer, m) { buffer.d = (buffer.d || "") + m; return undefined; },
 		'rm=': function (buffer, m) { buffer.rm = (buffer.rm || "") + m; return undefined; },
 		'text=': function (buffer, m) { buffer.text_ = (buffer.text_ || "") + m; return undefined; },
-		'insert': function ({}, {}, a: string) { return { type_: a } as Parsed; },
-		'insert+p1': function ({}, m, a) { return { type_: a, p1: m } as Parsed; },
-		'insert+p1+p2': function ({}, m, a) { return { type_: a, p1: m[0], p2: m[1] } as Parsed; },
-		'copy': function ({}, m) { return m; },
-		'write': function ({}, {}, a: string) { return a; },
-		'rm': function ({}, m) { return { type_: 'rm', p1: m }; },
-		'text': function ({}, m) { return _mhchemParser.go(m, 'text'); },
-		'tex-math': function ({}, m) { return _mhchemParser.go(m, 'tex-math'); },
-		'tex-math tight': function ({}, m) { return _mhchemParser.go(m, 'tex-math tight'); },
-		'bond': function ({}, m: BondName, k: BondName) { return { type_: 'bond', kind_: k || m }; },
-		'color0-output': function ({}, m) { return { type_: 'color0', color: m }; },
-		'ce': function ({}, m) { return _mhchemParser.go(m, 'ce'); },
-		'pu': function ({}, m) { return _mhchemParser.go(m, 'pu'); },
-		'1/2': function ({}, m) {
+		'insert': function (_buffer, _m, a: string) { return { type_: a } as Parsed; },
+		'insert+p1': function (_buffer, m, a) { return { type_: a, p1: m } as Parsed; },
+		'insert+p1+p2': function (_buffer, m, a) { return { type_: a, p1: m[0], p2: m[1] } as Parsed; },
+		'copy': function (_buffer, m) { return m; },
+		'write': function (_buffer, _m, a: string) { return a; },
+		'rm': function (_buffer, m) { return { type_: 'rm', p1: m }; },
+		'text': function (_buffer, m) { return _mhchemParser.go(m, 'text'); },
+		'tex-math': function (_buffer, m) { return _mhchemParser.go(m, 'tex-math'); },
+		'tex-math tight': function (_buffer, m) { return _mhchemParser.go(m, 'tex-math tight'); },
+		'bond': function (_buffer, m: BondName, k: BondName) { return { type_: 'bond', kind_: k || m }; },
+		'color0-output': function (_buffer, m) { return { type_: 'color0', color: m }; },
+		'ce': function (_buffer, m) { return _mhchemParser.go(m, 'ce'); },
+		'pu': function (_buffer, m) { return _mhchemParser.go(m, 'pu'); },
+		'1/2': function (_buffer, m) {
 			let ret: Parsed[] = [];
 			if (m.match(/^[+\-]/)) {
 				ret.push(m.substr(0, 1));
@@ -464,7 +464,7 @@ const _mhchemParser: MhchemParser = {
 			}
 			return ret;
 		},
-		'9,9': function ({}, m) { return _mhchemParser.go(m, '9,9'); }
+		'9,9': function (_buffer, m) { return _mhchemParser.go(m, '9,9'); }
 	},
 //
 // Definition of state machines
@@ -721,7 +721,7 @@ const _mhchemParser: MhchemParser = {
 			'beginsWithBond=false': function (buffer) { buffer['beginsWithBond'] = false; return undefined; },
 			'parenthesisLevel++': function (buffer) { buffer['parenthesisLevel']++; return undefined; },
 			'parenthesisLevel--': function (buffer) { buffer['parenthesisLevel']--; return undefined; },
-			'state of aggregation': function ({}, m) {
+			'state of aggregation': function (_buffer, m) {
 				return { type_: 'state of aggregation', p1: _mhchemParser.go(m, 'o') };
 			},
 			'comma': function (buffer, m) {
@@ -733,7 +733,7 @@ const _mhchemParser: MhchemParser = {
 					return { type_: 'comma enumeration M', p1: a };
 				}
 			},
-			'output': function (buffer, {}, entityFollows) {
+			'output': function (buffer, _m, entityFollows) {
 				// entityFollows:
 				//   undefined = if we have nothing else to output, also ignore the just read space (buffer.sb)
 				//   1 = an entity follows, never omit the space if there was one just read before (can only apply to state 1)
@@ -805,25 +805,25 @@ const _mhchemParser: MhchemParser = {
 				}
 				return ret;
 			},
-			'oxidation-output': function ({}, m) {
+			'oxidation-output': function (_buffer, m) {
 				let ret = [ "{" ];
 				_mhchemParser.concatArray(ret, _mhchemParser.go(m, 'oxidation'));
 				ret.push("}");
 				return ret;
 			},
-			'frac-output': function ({}, m) {
+			'frac-output': function (_buffer, m) {
 				return { type_: 'frac-ce', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
-			'overset-output': function ({}, m) {
+			'overset-output': function (_buffer, m) {
 				return { type_: 'overset', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
-			'underset-output': function ({}, m) {
+			'underset-output': function (_buffer, m) {
 				return { type_: 'underset', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
-			'underbrace-output': function ({}, m) {
+			'underbrace-output': function (_buffer, m) {
 				return { type_: 'underbrace', p1: _mhchemParser.go(m[0], 'ce'), p2: _mhchemParser.go(m[1], 'ce') };
 			},
-			'color-output': function ({}, m) {
+			'color-output': function (_buffer, m) {
 				return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'ce') };
 			},
 			'r=': function (buffer, m: ArrowName) { buffer.r = m; return undefined; },
@@ -831,7 +831,7 @@ const _mhchemParser: MhchemParser = {
 			'rd=': function (buffer, m) { buffer.rd = m; return undefined; },
 			'rqt=': function (buffer, m) { buffer.rqt = m; return undefined; },
 			'rq=': function (buffer, m) { buffer.rq = m; return undefined; },
-			'operator': function ({}, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; }
+			'operator': function (_buffer, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; }
 		}
 	},
 	'a': {
@@ -947,10 +947,10 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'copy' } }
 		}),
 		actions: {
-			'state of aggregation': function ({}, m) {
+			'state of aggregation': function (_buffer, m) {
 				return { type_: 'state of aggregation subscript', p1: _mhchemParser.go(m, 'o') };
 			},
-			'color-output': function ({}, m) {
+			'color-output': function (_buffer, m) {
 				return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'pq') };
 			}
 		}
@@ -995,7 +995,7 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'copy' } }
 		}),
 		actions: {
-			'color-output': function ({}, m) {
+			'color-output': function (_buffer, m) {
 				return { type_: 'color', color1: m[0], color2: _mhchemParser.go(m[1], 'bd') };
 			}
 		}
@@ -1012,7 +1012,7 @@ const _mhchemParser: MhchemParser = {
 				'*': { action_: 'copy' } }
 		}),
 		actions: {
-			'roman-numeral': function ({}, m) { return { type_: 'roman numeral', p1: m }; }
+			'roman-numeral': function (_buffer, m) { return { type_: 'roman numeral', p1: m }; }
 		}
 	},
 	'tex-math': {
@@ -1114,7 +1114,7 @@ const _mhchemParser: MhchemParser = {
 				'/|q': { action_: 'q=', nextState: 'q' } }
 		}),
 		actions: {
-			'enumber': function ({}, m) {
+			'enumber': function (_buffer, m) {
 				let ret: Parsed[] = [];
 				if (m[0] === "+-"  ||  m[0] === "+/-") {
 					ret.push("\\pm ");
@@ -1143,7 +1143,7 @@ const _mhchemParser: MhchemParser = {
 				}
 				return ret;
 			},
-			'number^': function ({}, m) {
+			'number^': function (_buffer, m) {
 				let ret: Parsed[] = [];
 				if (m[0] === "+-"  ||  m[0] === "+/-") {
 					ret.push("\\pm ");
@@ -1154,7 +1154,7 @@ const _mhchemParser: MhchemParser = {
 				ret.push("^{" + m[2] + "}");
 				return ret;
 			},
-			'operator': function ({}, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; },
+			'operator': function (_buffer, m, p1) { return { type_: 'operator', kind_: (p1 || m) } as Parsed; },
 			'space': function () { return { type_: 'pu-space-1' }; },
 			'output': function (buffer) {
 				let ret: Parsed | Parsed[];
