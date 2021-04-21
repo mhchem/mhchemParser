@@ -2,7 +2,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.0.0-pre
+ *  4.0.0
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -11,7 +11,7 @@
  *
  *  ----------------------------------------------------------------------
  *
- *  Copyright (c) 2015-2020 Martin Hensel
+ *  Copyright (c) 2015-2021 Martin Hensel
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -30,6 +30,6 @@
  *  https://github.com/mhchem/mhchemParser
  *
  */
-export declare const mhchemParser: {
-    toTex: (input: string, type: "tex" | "ce" | "pu") => string;
-};
+export declare class mhchemParser {
+    static toTex(input: string, type: "tex" | "ce" | "pu"): string;
+}
