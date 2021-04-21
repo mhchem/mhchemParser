@@ -31,8 +31,8 @@
  *
  */
 
-export const mhchemParser = {
-	toTex: function (input: string, type: "tex" | "ce" | "pu"): string {
+ export class mhchemParser {
+	static toTex(input: string, type: "tex" | "ce" | "pu"): string {
 		return _mhchemTexify.go(_mhchemParser.go(input, type), type !== "tex");
 	}
 }

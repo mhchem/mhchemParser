@@ -2,26 +2,28 @@
 <html>
 <head>
 	<meta charset="utf-8">
-	<script>
-		var exports = {};
-	</script>
-	<script src="../dist/mhchemParser.js"></script>
 </head>
 <body>
 	<h1>mhchem Parser – Tests</h1>
-	<div id="output"></div>
-	<script>
+	<div id="output"><span style="color: red">Could not load parser. This is likely a CORS restriction, e.g. if you opened this document via file://.</span></div>
+	<script type="module">
+
+import { mhchemParser } from '../dist/mhchemParser.js';
+document.getElementById('output').innerHTML = '';
 
 /// create tests
-var errorsFound = false;
+let errorsFound = false;
 function test(type, input, expected) {
-	var actual = exports.mhchemParser.toTex(input, type);
+	let actual = mhchemParser.toTex(input, type);
 	if (actual !== expected) {
-		var a = document.createElement('p');
-		a.innerHTML = '<span style="color: red">Test case failed. ' + input + '</span>';
-		document.getElementById('output').appendChild(a);
+		output('<span style="color: red">Test case failed. ' + input + '</span>');
 		errorsFound = true;
 	}
+}
+function output(html) {
+	let a = document.createElement('p');
+	a.innerHTML = html;
+	document.getElementById('output').appendChild(a);
 }
 
 ///
@@ -199,9 +201,7 @@ test('pu', '1 mol ', '{1~\\mathrm{mol}~}');
 test('pu', '123 l//100km', '{123~\\mathchoice{\\textstyle\\frac{\\mathrm{l}}{100~\\mathrm{km}}}{\\frac{\\mathrm{l}}{100~\\mathrm{km}}}{\\frac{\\mathrm{l}}{100~\\mathrm{km}}}{\\frac{\\mathrm{l}}{100~\\mathrm{km}}}}');
 
 if (!errorsFound) {
-	var a = document.createElement('p');
-	a.innerHTML = '<span style="color: green">All test executed. All successful.</span>';
-	document.getElementById('output').appendChild(a);
+	output('<span style="color: green">All test executed. All successful.</span>');
 }
 
 	</script>
