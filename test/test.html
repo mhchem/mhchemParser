@@ -2,13 +2,15 @@
 <html>
 <head>
 	<meta charset="utf-8">
-</head>
+	<script>
+		var exports = {};
+	</script>
+	<script src="../dist/mhchemParser.js"></script>
 <body>
 	<h1>mhchem Parser – Tests</h1>
 	<div id="output"><span style="color: red">Could not load parser. This is likely a CORS restriction, e.g. if you opened this document via file://.</span></div>
-	<script type="module">
+	<script>
 
-import { mhchemParser } from '../dist/mhchemParser.js';
 document.getElementById('output').innerHTML = '';
 
 /// create tests
