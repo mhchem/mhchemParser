@@ -2,7 +2,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.0.0
+ *  4.1.0
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -1471,7 +1471,7 @@ const _mhchemTexify: MhchemTexify = {
 				res = _mhchemTexify._getOperator(buf.kind_);
 				break;
 			case '1st-level escape':
-				res = buf.p1 + " ";  // &, \\\\, \\hlin
+				res = buf.p1 + " ";  // &, \\\\, \\hline
 				break;
 			case 'space':
 				res = " ";
