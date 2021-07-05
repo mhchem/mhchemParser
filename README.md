@@ -24,7 +24,7 @@ For "translating" the `\ce` syntax, make a call like
 
 This will return
 
-    "{\mathrm{CO}{\vphantom{X}}_{\smash[t]{2}} {}+{} \mathrm{C} {}\mathrel{\longrightarrow}{} 2\,\mathrm{CO}}"
+    "{\mathrm{CO}{\vphantom{A}}_{\smash[t]{2}} {}+{} \mathrm{C} {}\mathrel{\longrightarrow}{} 2\,\mathrm{CO}}"
 
 For the `\pu` command, call
 

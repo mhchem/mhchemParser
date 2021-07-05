@@ -112,7 +112,7 @@ type TransitionsRaw = {
 	}
 }
 type PatternNameReturningString =
-	"empty" | "else" | "else2" | "space" | "space A" | "space$" | "a-z" | "x" | "x$" | "i$" | "letters" | "\\greek" | "one lowercase latin letter $" | "$one lowercase latin letter$ $" | "one lowercase greek letter $" | "digits" | "-9.,9" | "-9.,9 no missing 0" | "state of aggregation $" | "{[(" | ")]}" | ", " | "," | "." | ". __* " | "..." | "^{(...)}" | "^($...$)" | "^a" | "^\\x{}" | "^\\x" | "^(-1)" | "\'" | "_{(...)}" | "_($...$)" | "_9" | "_\\x{}{}" | "_\\x{}" | "_\\x" | "^_" | "{}" | "{...}" | "{(...)}" | "$...$" | "${(...)}$__$(...)$" | "=<>" | "#" | "+" | "-$" | "-9" | "- orbital overlap" | "-" | "pm-operator" | "operator" | "arrowUpDown" | "\\bond{(...)}" | "->" | "CMT" | "[(...)]" | "1st-level escape" | "\\," |  "\\x{}" | "\\ca" | "\\x" | "orbital" | "others" | "\\color{(...)}" | "\\ce{(...)}" | "\\pu{(...)}" | "oxidation$" | "d-oxidation$" | "roman numeral" | "1/2$" | "amount" | "amount2" | "(KV letters)," | "formula$" | "uprightEntities" | "/" | "//" | "*" | "\\x{}{}" | "^\\x{}{}" |
+	"empty" | "else" | "else2" | "space" | "space A" | "space$" | "a-z" | "x" | "x$" | "i$" | "letters" | "\\greek" | "one lowercase latin letter $" | "$one lowercase latin letter$ $" | "one lowercase greek letter $" | "digits" | "-9.,9" | "-9.,9 no missing 0" | "state of aggregation $" | "{[(" | ")]}" | ", " | "," | "." | ". __* " | "..." | "^{(...)}" | "^($...$)" | "^a" | "^\\x{}" | "^\\x" | "^(-1)" | "\'" | "_{(...)}" | "_($...$)" | "_9" | "_\\x{}{}" | "_\\x{}" | "_\\x" | "^_" | "{}^" | "{}" | "{...}" | "{(...)}" | "$...$" | "${(...)}$__$(...)$" | "=<>" | "#" | "+" | "-$" | "-9" | "- orbital overlap" | "-" | "pm-operator" | "operator" | "arrowUpDown" | "\\bond{(...)}" | "->" | "CMT" | "[(...)]" | "1st-level escape" | "\\," |  "\\x{}" | "\\ca" | "\\x" | "orbital" | "others" | "\\color{(...)}" | "\\ce{(...)}" | "\\pu{(...)}" | "oxidation$" | "d-oxidation$" | "roman numeral" | "1/2$" | "amount" | "amount2" | "(KV letters)," | "formula$" | "uprightEntities" | "/" | "//" | "*" | "\\x{}{}" | "^\\x{}{}" |
 	"^{(...)}|^($...$)" | "^a|^\\x{}{}|^\\x{}|^\\x|\'" | "_{(...)}|_($...$)|_9|_\\x{}{}|_\\x{}|_\\x" | "\\,|\\x{}{}|\\x{}|\\x" | "{...}|\\,|\\x{}{}|\\x{}|\\x" | "\\x{}{}|\\x{}|\\x" | "-|+" | "{[(|)]}" | "{...}|else" | "^{(...)}|^(-1)";
 type PatternNameReturningArray2 = "_{(state of aggregation)}$" | "\\frac{(...)}" | "\\overset{(...)}" | "\\underset{(...)}" | "\\underbrace{(...)}" | "\\color{(...)}{(...)}";
 type PatternNameReturningArray3 = "(-)(9)^(-9)";
@@ -210,6 +210,7 @@ type ParsedWithoutString =
 	{ type_: "operator", kind_: OperatorName } |
 	{ type_: "1st-level escape", p1: string } |
 	{ type_: "space" } |
+	{ type_: "tinySkip" } |
 	{ type_: "entitySkip" } |
 	{ type_: "pu-space-1" } |
 	{ type_: "pu-space-2" } |

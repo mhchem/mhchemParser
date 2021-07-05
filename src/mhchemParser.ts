@@ -266,6 +266,7 @@ const _mhchemParser: MhchemParser = {
 			'_\\x{}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "_", /^\\[a-zA-Z]+\{/, "}", ""); } as PatternFunction<string>,
 			'_\\x': /^_(\\[a-zA-Z]+)\s*/,
 			'^_': /^(?:\^(?=_)|\_(?=\^)|[\^_]$)/,
+			'{}^': /^\{\}(?=\^)/,
 			'{}': /^\{\}/,
 			'{...}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "", "{", "}", ""); } as PatternFunction<string>,
 			'{(...)}': function (input) { return _mhchemParser.patterns.findObserveGroups(input, "{", "", "", "}"); } as PatternFunction<string>,
@@ -614,6 +615,8 @@ const _mhchemParser: MhchemParser = {
 				'0|1|2|3|a|as|o|q|d|D|qd|qD|dq': { action_: [ { type_: 'output', option: 2 }, 'bond' ], nextState: '3' } },
 			'#': {
 				'0|1|2|3|a|as|o': { action_: [ { type_: 'output', option: 2 }, { type_: 'bond', option: "#" } ], nextState: '3' } },
+			'{}^': {
+				'*': { action_: [ { type_: 'output', option: 1 }, { type_: 'insert', option: 'tinySkip' } ],  nextState: '1' } },
 			'{}': {
 				'*': { action_: { type_: 'output', option: 1 },  nextState: '1' } },
 			'{...}': {
@@ -658,10 +661,11 @@ const _mhchemParser: MhchemParser = {
 		actions: {
 			'o after d': function (buffer, m) {
 				let ret;
-				if ((buffer.d || "").match(/^[0-9]+$/)) {
+				if ((buffer.d || "").match(/^[1-9][0-9]*$/)) {
 					const tmp = buffer.d;
 					buffer.d = undefined;
 					ret = this['output'](buffer);
+					ret.push({ type_: 'tinySkip' });
 					buffer.b = tmp;
 				} else {
 					ret = this['output'](buffer);
@@ -1337,9 +1341,10 @@ const _mhchemTexify: MhchemTexify = {
 				// b and p
 				//
 				if (b5.b || b5.p) {
-					res += "{\\vphantom{X}}";
+					res += "{\\vphantom{A}}";
 					res += "^{\\hphantom{" + (b5.b || "") + "}}_{\\hphantom{" + (b5.p || "") + "}}";
-					res += "{\\vphantom{X}}";
+					res += "\\mkern-1.5mu";
+					res += "{\\vphantom{A}}";
 					res += "^{\\smash[t]{\\vphantom{2}}\\llap{" + (b5.b || "") + "}}";
 					res += "_{\\vphantom{2}\\llap{\\smash[t]{" + (b5.p || "") + "}}}";
 				}
@@ -1355,7 +1360,7 @@ const _mhchemTexify: MhchemTexify = {
 				//
 				if (buf.dType === 'kv') {
 					if (b5.d || b5.q) {
-						res += "{\\vphantom{X}}";
+						res += "{\\vphantom{A}}";
 					}
 					if (b5.d) {
 						res += "^{" + b5.d + "}";
@@ -1365,20 +1370,20 @@ const _mhchemTexify: MhchemTexify = {
 					}
 				} else if (buf.dType === 'oxidation') {
 					if (b5.d) {
-						res += "{\\vphantom{X}}";
+						res += "{\\vphantom{A}}";
 						res += "^{" + b5.d + "}";
 					}
 					if (b5.q) {
-						res += "{\\vphantom{X}}";
+						res += "{\\vphantom{A}}";
 						res += "_{\\smash[t]{" + b5.q + "}}";
 					}
 				} else {
 					if (b5.q) {
-						res += "{\\vphantom{X}}";
+						res += "{\\vphantom{A}}";
 						res += "_{\\smash[t]{" + b5.q + "}}";
 					}
 					if (b5.d) {
-						res += "{\\vphantom{X}}";
+						res += "{\\vphantom{A}}";
 						res += "^{" + b5.d + "}";
 					}
 				}
@@ -1475,6 +1480,9 @@ const _mhchemTexify: MhchemTexify = {
 				break;
 			case 'space':
 				res = " ";
+				break;
+			case 'tinySkip':
+				res = '\\mkern2mu';
 				break;
 			case 'entitySkip':
 				res = "~";
