@@ -2,7 +2,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.1.0
+ *  4.1.1
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -31,7 +31,7 @@
  *
  */
 
- export class mhchemParser {
+export class mhchemParser {
 	static toTex(input: string, type: "tex" | "ce" | "pu"): string {
 		return _mhchemTexify.go(_mhchemParser.go(input, type), type !== "tex");
 	}
@@ -43,11 +43,11 @@
 //   - use "" for strings that need to stay untouched
 
 //
-// Helper funtion: mhchemCreateTransitions
+// Helper funtion: _mhchemCreateTransitions
 // convert  { 'letter': { 'state': { action_: 'output' } } }  to  { 'state' => [ { pattern: 'letter', task: { action_: [{type_: 'output'}] } } ] }
 // with expansion of 'a|b' to 'a' and 'b' (at 2 places)
 //
-function mhchemCreateTransitions(o: TransitionsRaw): Transitions {
+function _mhchemCreateTransitions(o: TransitionsRaw): Transitions {
 	let pattern: PatternName, state: StateNameCombined;
 	//
 	// 1. Collect all states
@@ -475,7 +475,7 @@ const _mhchemParser: MhchemParser = {
 	// TeX state machine
 	//
 	'tex': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'0': { action_: 'copy' } },
 			'\\ce{(...)}': {
@@ -492,7 +492,7 @@ const _mhchemParser: MhchemParser = {
 	//
 	//#region ce
 	'ce': {  // main parser
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'else':  {
@@ -839,7 +839,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'a': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			'1/2$': {
@@ -856,7 +856,7 @@ const _mhchemParser: MhchemParser = {
 		actions: {}
 	},
 	'o': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			'1/2$': {
@@ -881,7 +881,7 @@ const _mhchemParser: MhchemParser = {
 		actions: {}
 	},
 	'text': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'{...}': {
@@ -910,7 +910,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'pq': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			'state of aggregation $': {
@@ -960,7 +960,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'bd': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			'x$': {
@@ -1005,7 +1005,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'oxidation': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			'roman numeral': {
@@ -1020,7 +1020,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'tex-math': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'\\ce{(...)}': {
@@ -1045,7 +1045,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'tex-math tight': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'\\ce{(...)}': {
@@ -1073,7 +1073,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'9,9': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: [] } },
 			',': {
@@ -1091,7 +1091,7 @@ const _mhchemParser: MhchemParser = {
 	//
 	//#region pu
 	'pu': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'space$': {
@@ -1198,7 +1198,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'pu-2': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'*': { action_: 'output' } },
 			'*': {
@@ -1236,7 +1236,7 @@ const _mhchemParser: MhchemParser = {
 		}
 	},
 	'pu-9,9': {
-		transitions: mhchemCreateTransitions({
+		transitions: _mhchemCreateTransitions({
 			'empty': {
 				'0': { action_: 'output-0' },
 				'o': { action_: 'output-o' } },

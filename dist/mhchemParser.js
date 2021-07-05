@@ -3,7 +3,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.1.0
+ *  4.1.1
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -42,7 +42,7 @@ var mhchemParser = (function () {
     return mhchemParser;
 }());
 exports.mhchemParser = mhchemParser;
-function mhchemCreateTransitions(o) {
+function _mhchemCreateTransitions(o) {
     var pattern, state;
     var transitions = {};
     for (pattern in o) {
@@ -434,7 +434,7 @@ var _mhchemParser = {
     },
     stateMachines: {
         'tex': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '0': { action_: 'copy' }
                 },
@@ -451,7 +451,7 @@ var _mhchemParser = {
             actions: {}
         },
         'ce': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -859,7 +859,7 @@ var _mhchemParser = {
             }
         },
         'a': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -882,7 +882,7 @@ var _mhchemParser = {
             actions: {}
         },
         'o': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -917,7 +917,7 @@ var _mhchemParser = {
             actions: {}
         },
         'text': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -954,7 +954,7 @@ var _mhchemParser = {
             }
         },
         'pq': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -1023,7 +1023,7 @@ var _mhchemParser = {
             }
         },
         'bd': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -1086,7 +1086,7 @@ var _mhchemParser = {
             }
         },
         'oxidation': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -1105,7 +1105,7 @@ var _mhchemParser = {
             }
         },
         'tex-math': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -1136,7 +1136,7 @@ var _mhchemParser = {
             }
         },
         'tex-math tight': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -1171,7 +1171,7 @@ var _mhchemParser = {
             }
         },
         '9,9': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: [] }
                 },
@@ -1187,7 +1187,7 @@ var _mhchemParser = {
             }
         },
         'pu': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -1317,7 +1317,7 @@ var _mhchemParser = {
             }
         },
         'pu-2': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '*': { action_: 'output' }
                 },
@@ -1364,7 +1364,7 @@ var _mhchemParser = {
             }
         },
         'pu-9,9': {
-            transitions: mhchemCreateTransitions({
+            transitions: _mhchemCreateTransitions({
                 'empty': {
                     '0': { action_: 'output-0' },
                     'o': { action_: 'output-o' }
@@ -1477,7 +1477,7 @@ var _mhchemTexify = {
                 if (b5.b || b5.p) {
                     res += "{\\vphantom{A}}";
                     res += "^{\\hphantom{" + (b5.b || "") + "}}_{\\hphantom{" + (b5.p || "") + "}}";
-                    res += "\\mskip-1.5mu";
+                    res += "\\mkern-1.5mu";
                     res += "{\\vphantom{A}}";
                     res += "^{\\smash[t]{\\vphantom{2}}\\llap{" + (b5.b || "") + "}}";
                     res += "_{\\vphantom{2}\\llap{\\smash[t]{" + (b5.p || "") + "}}}";
