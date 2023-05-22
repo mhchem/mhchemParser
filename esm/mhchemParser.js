@@ -1,9 +1,8 @@
-"use strict";
 /*!
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.2.0
+ *  4.1.2
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -31,44 +30,38 @@
  *  https://github.com/mhchem/mhchemParser
  *
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.mhchemParser = void 0;
-var mhchemParser = (function () {
-    function mhchemParser() {
-    }
-    mhchemParser.toTex = function (input, type) {
+export class mhchemParser {
+    static toTex(input, type) {
         return _mhchemTexify.go(_mhchemParser.go(input, type), type !== "tex");
-    };
-    return mhchemParser;
-}());
-exports.mhchemParser = mhchemParser;
+    }
+}
 function _mhchemCreateTransitions(o) {
-    var pattern, state;
-    var transitions = {};
+    let pattern, state;
+    let transitions = {};
     for (pattern in o) {
         for (state in o[pattern]) {
-            var stateArray = state.split("|");
+            let stateArray = state.split("|");
             o[pattern][state].stateArray = stateArray;
-            for (var i = 0; i < stateArray.length; i++) {
+            for (let i = 0; i < stateArray.length; i++) {
                 transitions[stateArray[i]] = [];
             }
         }
     }
     for (pattern in o) {
         for (state in o[pattern]) {
-            var stateArray = o[pattern][state].stateArray || [];
-            for (var i = 0; i < stateArray.length; i++) {
-                var p = o[pattern][state];
+            let stateArray = o[pattern][state].stateArray || [];
+            for (let i = 0; i < stateArray.length; i++) {
+                const p = o[pattern][state];
                 p.action_ = [].concat(p.action_);
-                for (var k = 0; k < p.action_.length; k++) {
+                for (let k = 0; k < p.action_.length; k++) {
                     if (typeof p.action_[k] === "string") {
                         p.action_[k] = { type_: p.action_[k] };
                     }
                 }
-                var patternArray = pattern.split("|");
-                for (var j = 0; j < patternArray.length; j++) {
+                const patternArray = pattern.split("|");
+                for (let j = 0; j < patternArray.length; j++) {
                     if (stateArray[i] === '*') {
-                        var t = void 0;
+                        let t;
                         for (t in transitions) {
                             transitions[t].push({ pattern: patternArray[j], task: p });
                         }
@@ -83,7 +76,7 @@ function _mhchemCreateTransitions(o) {
     return transitions;
 }
 ;
-var _mhchemParser = {
+const _mhchemParser = {
     go: function (input, stateMachine) {
         if (!input) {
             return [];
@@ -91,15 +84,15 @@ var _mhchemParser = {
         if (stateMachine === undefined) {
             stateMachine = 'ce';
         }
-        var state = '0';
-        var buffer = {};
+        let state = '0';
+        let buffer = {};
         buffer['parenthesisLevel'] = 0;
         input = input.replace(/\n/g, " ");
         input = input.replace(/[\u2212\u2013\u2014\u2010]/g, "-");
         input = input.replace(/[\u2026]/g, "...");
-        var lastInput;
-        var watchdog = 10;
-        var output = [];
+        let lastInput;
+        let watchdog = 10;
+        let output = [];
         while (true) {
             if (lastInput !== input) {
                 watchdog = 10;
@@ -108,14 +101,14 @@ var _mhchemParser = {
             else {
                 watchdog--;
             }
-            var machine = _mhchemParser.stateMachines[stateMachine];
-            var t = machine.transitions[state] || machine.transitions['*'];
-            iterateTransitions: for (var i = 0; i < t.length; i++) {
-                var matches = _mhchemParser.patterns.match_(t[i].pattern, input);
+            let machine = _mhchemParser.stateMachines[stateMachine];
+            let t = machine.transitions[state] || machine.transitions['*'];
+            iterateTransitions: for (let i = 0; i < t.length; i++) {
+                let matches = _mhchemParser.patterns.match_(t[i].pattern, input);
                 if (matches) {
-                    var task = t[i].task;
-                    for (var iA = 0; iA < task.action_.length; iA++) {
-                        var o = void 0;
+                    const task = t[i].task;
+                    for (let iA = 0; iA < task.action_.length; iA++) {
+                        let o;
                         if (machine.actions[task.action_[iA].type_]) {
                             o = machine.actions[task.action_[iA].type_](buffer, matches.match_, task.action_[iA].option);
                         }
@@ -149,7 +142,7 @@ var _mhchemParser = {
     concatArray: function (a, b) {
         if (b) {
             if (Array.isArray(b)) {
-                for (var iB = 0; iB < b.length; iB++) {
+                for (let iB = 0; iB < b.length; iB++) {
                     a.push(b[iB]);
                 }
             }
@@ -179,7 +172,7 @@ var _mhchemParser = {
             '-9.,9': /^[+\-]?(?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))/,
             '-9.,9 no missing 0': /^[+\-]?[0-9]+(?:[.,][0-9]+)?/,
             '(-)(9.,9)(e)(99)': function (input) {
-                var match = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))?(\((?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))\))?(?:(?:([eE])|\s*(\*|x|\\times|\u00D7)\s*10\^)([+\-]?[0-9]+|\{[+\-]?[0-9]+\}))?/);
+                const match = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))?(\((?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))\))?(?:(?:([eE])|\s*(\*|x|\\times|\u00D7)\s*10\^)([+\-]?[0-9]+|\{[+\-]?[0-9]+\}))?/);
                 if (match && match[0]) {
                     return { match_: match.slice(1), remainder: input.substr(match[0].length) };
                 }
@@ -187,11 +180,11 @@ var _mhchemParser = {
             },
             '(-)(9)^(-9)': /^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+)?)\^([+\-]?[0-9]+|\{[+\-]?[0-9]+\})/,
             'state of aggregation $': function (input) {
-                var a = _mhchemParser.patterns.findObserveGroups(input, "", /^\([a-z]{1,3}(?=[\),])/, ")", "");
+                const a = _mhchemParser.patterns.findObserveGroups(input, "", /^\([a-z]{1,3}(?=[\),])/, ")", "");
                 if (a && a.remainder.match(/^($|[\s,;\)\]\}])/)) {
                     return a;
                 }
-                var match = input.match(/^(?:\((?:\\ca\s?)?\$[amothc]\$\))/);
+                const match = input.match(/^(?:\((?:\\ca\s?)?\$[amothc]\$\))/);
                 if (match) {
                     return { match_: match[0], remainder: input.substr(match[0].length) };
                 }
@@ -265,12 +258,12 @@ var _mhchemParser = {
             'd-oxidation$': /^(?:[+-]?[IVX]+|(?:\\pm|\$\\pm\$|\+-|\+\/-)\s*0)$/,
             '1/2$': /^[+\-]?(?:[0-9]+|\$[a-z]\$|[a-z])\/[0-9]+(?:\$[a-z]\$|[a-z])?$/,
             'amount': function (input) {
-                var match;
+                let match;
                 match = input.match(/^(?:(?:(?:\([+\-]?[0-9]+\/[0-9]+\)|[+\-]?(?:[0-9]+|\$[a-z]\$|[a-z])\/[0-9]+|[+\-]?[0-9]+[.,][0-9]+|[+\-]?\.[0-9]+|[+\-]?[0-9]+)(?:[a-z](?=\s*[A-Z]))?)|[+\-]?[a-z](?=\s*[A-Z])|\+(?!\s))/);
                 if (match) {
                     return { match_: match[0], remainder: input.substr(match[0].length) };
                 }
-                var a = _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", "");
+                const a = _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", "");
                 if (a) {
                     match = a.match_.match(/^\$(?:\(?[+\-]?(?:[0-9]*[a-z]?[+\-])?[0-9]*[a-z](?:[+\-][0-9]*[a-z]?)?\)?|\+|-)\$$/);
                     if (match) {
@@ -285,7 +278,7 @@ var _mhchemParser = {
                 if (input.match(/^\([a-z]+\)$/)) {
                     return null;
                 }
-                var match = input.match(/^(?:[a-z]|(?:[0-9\ \+\-\,\.\(\)]+[a-z])+[0-9\ \+\-\,\.\(\)]*|(?:[a-z][0-9\ \+\-\,\.\(\)]+)+[a-z]?)$/);
+                const match = input.match(/^(?:[a-z]|(?:[0-9\ \+\-\,\.\(\)]+[a-z])+[0-9\ \+\-\,\.\(\)]*|(?:[a-z][0-9\ \+\-\,\.\(\)]+)+[a-z]?)$/);
                 if (match) {
                     return { match_: match[0], remainder: input.substr(match[0].length) };
                 }
@@ -297,7 +290,7 @@ var _mhchemParser = {
             '*': /^\s*[*.]\s*/
         },
         findObserveGroups: function (input, begExcl, begIncl, endIncl, endExcl, beg2Excl, beg2Incl, end2Incl, end2Excl, combine) {
-            var _match = function (input, pattern) {
+            const _match = function (input, pattern) {
                 if (typeof pattern === "string") {
                     if (input.indexOf(pattern) !== 0) {
                         return null;
@@ -305,20 +298,20 @@ var _mhchemParser = {
                     return pattern;
                 }
                 else {
-                    var match_1 = input.match(pattern);
-                    if (!match_1) {
+                    const match = input.match(pattern);
+                    if (!match) {
                         return null;
                     }
-                    return match_1[0];
+                    return match[0];
                 }
             };
-            var _findObserveGroups = function (input, i, endChars) {
-                var braces = 0;
+            const _findObserveGroups = function (input, i, endChars) {
+                let braces = 0;
                 while (i < input.length) {
-                    var a = input.charAt(i);
-                    var match_2 = _match(input.substr(i), endChars);
-                    if (match_2 !== null && braces === 0) {
-                        return { endMatchBegin: i, endMatchEnd: i + match_2.length };
+                    let a = input.charAt(i);
+                    const match = _match(input.substr(i), endChars);
+                    if (match !== null && braces === 0) {
+                        return { endMatchBegin: i, endMatchEnd: i + match.length };
                     }
                     else if (a === "{") {
                         braces++;
@@ -338,7 +331,7 @@ var _mhchemParser = {
                 }
                 return null;
             };
-            var match = _match(input, begExcl);
+            let match = _match(input, begExcl);
             if (match === null) {
                 return null;
             }
@@ -347,11 +340,11 @@ var _mhchemParser = {
             if (match === null) {
                 return null;
             }
-            var e = _findObserveGroups(input, match.length, endIncl || endExcl);
+            const e = _findObserveGroups(input, match.length, endIncl || endExcl);
             if (e === null) {
                 return null;
             }
-            var match1 = input.substring(0, (endIncl ? e.endMatchEnd : e.endMatchBegin));
+            const match1 = input.substring(0, (endIncl ? e.endMatchEnd : e.endMatchBegin));
             if (!(beg2Excl || beg2Incl)) {
                 return {
                     match_: match1,
@@ -359,11 +352,11 @@ var _mhchemParser = {
                 };
             }
             else {
-                var group2 = this.findObserveGroups(input.substr(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
+                const group2 = this.findObserveGroups(input.substr(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
                 if (group2 === null) {
                     return null;
                 }
-                var matchRet = [match1, group2.match_];
+                const matchRet = [match1, group2.match_];
                 return {
                     match_: (combine ? matchRet.join("") : matchRet),
                     remainder: group2.remainder
@@ -371,7 +364,7 @@ var _mhchemParser = {
             }
         },
         match_: function (m, input) {
-            var pattern = _mhchemParser.patterns.patterns[m];
+            const pattern = _mhchemParser.patterns.patterns[m];
             if (pattern === undefined) {
                 throw ["MhchemBugP", "mhchem bug P. Please report. (" + m + ")"];
             }
@@ -379,7 +372,7 @@ var _mhchemParser = {
                 return _mhchemParser.patterns.patterns[m](input);
             }
             else {
-                var match = input.match(pattern);
+                const match = input.match(pattern);
                 if (match) {
                     if (match.length > 2) {
                         return { match_: match.slice(1), remainder: input.substr(match[0].length) };
@@ -416,12 +409,12 @@ var _mhchemParser = {
         'ce': function (_buffer, m) { return _mhchemParser.go(m, 'ce'); },
         'pu': function (_buffer, m) { return _mhchemParser.go(m, 'pu'); },
         '1/2': function (_buffer, m) {
-            var ret = [];
+            let ret = [];
             if (m.match(/^[+\-]/)) {
                 ret.push(m.substr(0, 1));
                 m = m.substr(1);
             }
-            var n = m.match(/^([0-9]+|\$[a-z]\$|[a-z])\/([0-9]+)(\$[a-z]\$|[a-z])?$/);
+            const n = m.match(/^([0-9]+|\$[a-z]\$|[a-z])\/([0-9]+)(\$[a-z]\$|[a-z])?$/);
             n[1] = n[1].replace(/\$/g, "");
             ret.push({ type_: 'frac', p1: n[1], p2: n[2] });
             if (n[3]) {
@@ -672,9 +665,9 @@ var _mhchemParser = {
             }),
             actions: {
                 'o after d': function (buffer, m) {
-                    var ret;
+                    let ret;
                     if ((buffer.d || "").match(/^[1-9][0-9]*$/)) {
-                        var tmp = buffer.d;
+                        const tmp = buffer.d;
                         buffer.d = undefined;
                         ret = this['output'](buffer);
                         ret.push({ type_: 'tinySkip' });
@@ -693,7 +686,7 @@ var _mhchemParser = {
                 },
                 'charge or bond': function (buffer, m) {
                     if (buffer['beginsWithBond']) {
-                        var ret = [];
+                        let ret = [];
                         _mhchemParser.concatArray(ret, this['output'](buffer));
                         _mhchemParser.concatArray(ret, _mhchemParser.actions['bond'](buffer, m, "-"));
                         return ret;
@@ -704,15 +697,15 @@ var _mhchemParser = {
                     }
                 },
                 '- after o/d': function (buffer, m, isAfterD) {
-                    var c1 = _mhchemParser.patterns.match_('orbital', buffer.o || "");
-                    var c2 = _mhchemParser.patterns.match_('one lowercase greek letter $', buffer.o || "");
-                    var c3 = _mhchemParser.patterns.match_('one lowercase latin letter $', buffer.o || "");
-                    var c4 = _mhchemParser.patterns.match_('$one lowercase latin letter$ $', buffer.o || "");
-                    var hyphenFollows = m === "-" && (c1 && c1.remainder === "" || c2 || c3 || c4);
+                    let c1 = _mhchemParser.patterns.match_('orbital', buffer.o || "");
+                    const c2 = _mhchemParser.patterns.match_('one lowercase greek letter $', buffer.o || "");
+                    const c3 = _mhchemParser.patterns.match_('one lowercase latin letter $', buffer.o || "");
+                    const c4 = _mhchemParser.patterns.match_('$one lowercase latin letter$ $', buffer.o || "");
+                    const hyphenFollows = m === "-" && (c1 && c1.remainder === "" || c2 || c3 || c4);
                     if (hyphenFollows && !buffer.a && !buffer.b && !buffer.p && !buffer.d && !buffer.q && !c1 && c3) {
                         buffer.o = '$' + buffer.o + '$';
                     }
-                    var ret = [];
+                    let ret = [];
                     if (hyphenFollows) {
                         _mhchemParser.concatArray(ret, this['output'](buffer));
                         ret.push({ type_: 'hyphen' });
@@ -745,8 +738,8 @@ var _mhchemParser = {
                     return { type_: 'state of aggregation', p1: _mhchemParser.go(m, 'o') };
                 },
                 'comma': function (buffer, m) {
-                    var a = m.replace(/\s*$/, '');
-                    var withSpace = (a !== m);
+                    const a = m.replace(/\s*$/, '');
+                    const withSpace = (a !== m);
                     if (withSpace && buffer['parenthesisLevel'] === 0) {
                         return { type_: 'comma enumeration L', p1: a };
                     }
@@ -755,7 +748,7 @@ var _mhchemParser = {
                     }
                 },
                 'output': function (buffer, _m, entityFollows) {
-                    var ret;
+                    let ret;
                     if (!buffer.r) {
                         ret = [];
                         if (!buffer.a && !buffer.b && !buffer.p && !buffer.o && !buffer.q && !buffer.d && !entityFollows) {
@@ -795,7 +788,7 @@ var _mhchemParser = {
                         }
                     }
                     else {
-                        var rd = void 0;
+                        let rd;
                         if (buffer.rdt === 'M') {
                             rd = _mhchemParser.go(buffer.rd, 'tex-math');
                         }
@@ -805,7 +798,7 @@ var _mhchemParser = {
                         else {
                             rd = _mhchemParser.go(buffer.rd, 'ce');
                         }
-                        var rq = void 0;
+                        let rq;
                         if (buffer.rqt === 'M') {
                             rq = _mhchemParser.go(buffer.rq, 'tex-math');
                         }
@@ -822,7 +815,7 @@ var _mhchemParser = {
                             rq: rq
                         };
                     }
-                    for (var p in buffer) {
+                    for (const p in buffer) {
                         if (p !== 'parenthesisLevel' && p !== 'beginsWithBond') {
                             delete buffer[p];
                         }
@@ -830,7 +823,7 @@ var _mhchemParser = {
                     return ret;
                 },
                 'oxidation-output': function (_buffer, m) {
-                    var ret = ["{"];
+                    let ret = ["{"];
                     _mhchemParser.concatArray(ret, _mhchemParser.go(m, 'oxidation'));
                     ret.push("}");
                     return ret;
@@ -943,8 +936,8 @@ var _mhchemParser = {
             actions: {
                 'output': function (buffer) {
                     if (buffer.text_) {
-                        var ret = { type_: 'text', p1: buffer.text_ };
-                        for (var p in buffer) {
+                        let ret = { type_: 'text', p1: buffer.text_ };
+                        for (const p in buffer) {
                             delete buffer[p];
                         }
                         return ret;
@@ -1122,8 +1115,8 @@ var _mhchemParser = {
             actions: {
                 'output': function (buffer) {
                     if (buffer.o) {
-                        var ret = { type_: 'tex-math', p1: buffer.o };
-                        for (var p in buffer) {
+                        let ret = { type_: 'tex-math', p1: buffer.o };
+                        for (const p in buffer) {
                             delete buffer[p];
                         }
                         return ret;
@@ -1157,8 +1150,8 @@ var _mhchemParser = {
                 'tight operator': function (buffer, m) { buffer.o = (buffer.o || "") + "{" + m + "}"; return undefined; },
                 'output': function (buffer) {
                     if (buffer.o) {
-                        var ret = { type_: 'tex-math', p1: buffer.o };
-                        for (var p in buffer) {
+                        let ret = { type_: 'tex-math', p1: buffer.o };
+                        for (const p in buffer) {
                             delete buffer[p];
                         }
                         return ret;
@@ -1223,7 +1216,7 @@ var _mhchemParser = {
             }),
             actions: {
                 'enumber': function (_buffer, m) {
-                    var ret = [];
+                    let ret = [];
                     if (m[0] === "+-" || m[0] === "+/-") {
                         ret.push("\\pm ");
                     }
@@ -1255,7 +1248,7 @@ var _mhchemParser = {
                     return ret;
                 },
                 'number^': function (_buffer, m) {
-                    var ret = [];
+                    let ret = [];
                     if (m[0] === "+-" || m[0] === "+/-") {
                         ret.push("\\pm ");
                     }
@@ -1269,12 +1262,12 @@ var _mhchemParser = {
                 'operator': function (_buffer, m, p1) { return { type_: 'operator', kind_: (p1 || m) }; },
                 'space': function () { return { type_: 'pu-space-1' }; },
                 'output': function (buffer) {
-                    var ret;
-                    var md = _mhchemParser.patterns.match_('{(...)}', buffer.d || "");
+                    let ret;
+                    const md = _mhchemParser.patterns.match_('{(...)}', buffer.d || "");
                     if (md && md.remainder === '') {
                         buffer.d = md.match_;
                     }
-                    var mq = _mhchemParser.patterns.match_('{(...)}', buffer.q || "");
+                    const mq = _mhchemParser.patterns.match_('{(...)}', buffer.q || "");
                     if (mq && mq.remainder === '') {
                         buffer.q = mq.match_;
                     }
@@ -1285,7 +1278,7 @@ var _mhchemParser = {
                     if (buffer.q) {
                         buffer.q = buffer.q.replace(/\u00B0C|\^oC|\^{o}C/g, "{}^{\\circ}C");
                         buffer.q = buffer.q.replace(/\u00B0F|\^oF|\^{o}F/g, "{}^{\\circ}F");
-                        var b5 = {
+                        const b5 = {
                             d: _mhchemParser.go(buffer.d, 'pu'),
                             q: _mhchemParser.go(buffer.q, 'pu')
                         };
@@ -1306,7 +1299,7 @@ var _mhchemParser = {
                     else {
                         ret = _mhchemParser.go(buffer.d, 'pu-2');
                     }
-                    for (var p in buffer) {
+                    for (const p in buffer) {
                         delete buffer[p];
                     }
                     return ret;
@@ -1343,9 +1336,9 @@ var _mhchemParser = {
                 '^(-1)': function (buffer, m) { buffer.rm += "^{" + m + "}"; return undefined; },
                 'space': function () { return { type_: 'pu-space-2' }; },
                 'output': function (buffer) {
-                    var ret = [];
+                    let ret = [];
                     if (buffer.rm) {
-                        var mrm = _mhchemParser.patterns.match_('{(...)}', buffer.rm || "");
+                        const mrm = _mhchemParser.patterns.match_('{(...)}', buffer.rm || "");
                         if (mrm && mrm.remainder === '') {
                             ret = _mhchemParser.go(mrm.match_, 'pu');
                         }
@@ -1353,7 +1346,7 @@ var _mhchemParser = {
                             ret = { type_: 'rm', p1: buffer.rm };
                         }
                     }
-                    for (var p in buffer) {
+                    for (const p in buffer) {
                         delete buffer[p];
                     }
                     return ret;
@@ -1379,14 +1372,14 @@ var _mhchemParser = {
             actions: {
                 'comma': function () { return { type_: 'commaDecimal' }; },
                 'output-0': function (buffer) {
-                    var ret = [];
+                    let ret = [];
                     buffer.text_ = buffer.text_ || "";
                     if (buffer.text_.length > 4) {
-                        var a = buffer.text_.length % 3;
+                        let a = buffer.text_.length % 3;
                         if (a === 0) {
                             a = 3;
                         }
-                        for (var i = buffer.text_.length - 3; i > 0; i -= 3) {
+                        for (let i = buffer.text_.length - 3; i > 0; i -= 3) {
                             ret.push(buffer.text_.substr(i, 3));
                             ret.push({ type_: '1000 separator' });
                         }
@@ -1396,17 +1389,17 @@ var _mhchemParser = {
                     else {
                         ret.push(buffer.text_);
                     }
-                    for (var p in buffer) {
+                    for (const p in buffer) {
                         delete buffer[p];
                     }
                     return ret;
                 },
                 'output-o': function (buffer) {
-                    var ret = [];
+                    let ret = [];
                     buffer.text_ = buffer.text_ || "";
                     if (buffer.text_.length > 4) {
-                        var a = buffer.text_.length - 3;
-                        var i = void 0;
+                        const a = buffer.text_.length - 3;
+                        let i;
                         for (i = 0; i < a; i += 3) {
                             ret.push(buffer.text_.substr(i, 3));
                             ret.push({ type_: '1000 separator' });
@@ -1416,7 +1409,7 @@ var _mhchemParser = {
                     else {
                         ret.push(buffer.text_);
                     }
-                    for (var p in buffer) {
+                    for (const p in buffer) {
                         delete buffer[p];
                     }
                     return ret;
@@ -1425,15 +1418,15 @@ var _mhchemParser = {
         }
     }
 };
-var _mhchemTexify = {
+const _mhchemTexify = {
     go: function (input, addOuterBraces) {
         if (!input) {
             return "";
         }
-        var res = "";
-        var cee = false;
-        for (var i = 0; i < input.length; i++) {
-            var inputi = input[i];
+        let res = "";
+        let cee = false;
+        for (let i = 0; i < input.length; i++) {
+            const inputi = input[i];
             if (typeof inputi === "string") {
                 res += inputi;
             }
@@ -1453,11 +1446,11 @@ var _mhchemTexify = {
         return _mhchemTexify.go(input, false);
     },
     _go2: function (buf) {
-        var res;
+        let res;
         switch (buf.type_) {
             case 'chemfive':
                 res = "";
-                var b5 = {
+                const b5 = {
                     a: _mhchemTexify._goInner(buf.a),
                     b: _mhchemTexify._goInner(buf.b),
                     p: _mhchemTexify._goInner(buf.p),
@@ -1545,11 +1538,11 @@ var _mhchemTexify = {
                 }
                 break;
             case 'frac':
-                var c = "\\frac{" + buf.p1 + "}{" + buf.p2 + "}";
+                const c = "\\frac{" + buf.p1 + "}{" + buf.p2 + "}";
                 res = "\\mathchoice{\\textstyle" + c + "}{" + c + "}{" + c + "}{" + c + "}";
                 break;
             case 'pu-frac':
-                var d = "\\frac{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
+                const d = "\\frac{" + _mhchemTexify._goInner(buf.p1) + "}{" + _mhchemTexify._goInner(buf.p2) + "}";
                 res = "\\mathchoice{\\textstyle" + d + "}{" + d + "}{" + d + "}{" + d + "}";
                 break;
             case 'tex-math':
@@ -1574,11 +1567,11 @@ var _mhchemTexify = {
                 res = "\\color{" + buf.color + "}";
                 break;
             case 'arrow':
-                var b6 = {
+                const b6 = {
                     rd: _mhchemTexify._goInner(buf.rd),
                     rq: _mhchemTexify._goInner(buf.rq)
                 };
-                var arrow = _mhchemTexify._getArrow(buf.r);
+                let arrow = _mhchemTexify._getArrow(buf.r);
                 if (b6.rd || b6.rq) {
                     if (buf.r === "<=>" || buf.r === "<=>>" || buf.r === "<<=>" || buf.r === "<-->") {
                         arrow = "\\long" + arrow;
