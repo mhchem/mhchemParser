@@ -3,7 +3,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.2.0
+ *  4.2.1
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
