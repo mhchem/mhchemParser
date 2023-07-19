@@ -2,7 +2,7 @@
  *************************************************************************
  *
  *  mhchemParser.ts
- *  4.2.1
+ *  4.2.2
  *
  *  Parser for the \ce command and \pu command for MathJax and Co.
  *
@@ -229,7 +229,7 @@ const _mhchemParser: MhchemParser = {
 			'(-)(9.,9)(e)(99)': function (input) {
 				const match = input.match(/^(\+\-|\+\/\-|\+|\-|\\pm\s?)?([0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))?(\((?:[0-9]+(?:[,.][0-9]+)?|[0-9]*(?:\.[0-9]+))\))?(?:(?:([eE])|\s*(\*|x|\\times|\u00D7)\s*10\^)([+\-]?[0-9]+|\{[+\-]?[0-9]+\}))?/);
 				if (match && match[0]) {  // could also match ""
-					return { match_: match.slice(1), remainder: input.substr(match[0].length) };
+					return { match_: match.slice(1), remainder: input.substring(match[0].length) };
 				}
 				return null;
 			},
@@ -239,7 +239,7 @@ const _mhchemParser: MhchemParser = {
 				if (a  &&  a.remainder.match(/^($|[\s,;\)\]\}])/)) { return a; }  //  AND end of 'phrase'
 				const match = input.match(/^(?:\((?:\\ca\s?)?\$[amothc]\$\))/);  // OR crystal system ($o$) (\ca$c$)
 				if (match) {
-					return { match_: match[0], remainder: input.substr(match[0].length) };
+					return { match_: match[0], remainder: input.substring(match[0].length) };
 				}
 				return null;
 			} as PatternFunction<string>,
@@ -315,13 +315,13 @@ const _mhchemParser: MhchemParser = {
 				// e.g. 2, 0.5, 1/2, -2, n/2, +;  $a$ could be added later in parsing
 				match = input.match(/^(?:(?:(?:\([+\-]?[0-9]+\/[0-9]+\)|[+\-]?(?:[0-9]+|\$[a-z]\$|[a-z])\/[0-9]+|[+\-]?[0-9]+[.,][0-9]+|[+\-]?\.[0-9]+|[+\-]?[0-9]+)(?:[a-z](?=\s*[A-Z]))?)|[+\-]?[a-z](?=\s*[A-Z])|\+(?!\s))/);
 				if (match) {
-					return { match_: match[0], remainder: input.substr(match[0].length) };
+					return { match_: match[0], remainder: input.substring(match[0].length) };
 				}
 				const a = _mhchemParser.patterns.findObserveGroups(input, "", "$", "$", "") as MatchResult<string>;
 				if (a) {  // e.g. $2n-1$, $-$
 					match = a.match_.match(/^\$(?:\(?[+\-]?(?:[0-9]*[a-z]?[+\-])?[0-9]*[a-z](?:[+\-][0-9]*[a-z]?)?\)?|\+|-)\$$/);
 					if (match) {
-						return { match_: match[0], remainder: input.substr(match[0].length) };
+						return { match_: match[0], remainder: input.substring(match[0].length) };
 					}
 				}
 				return null;
@@ -332,7 +332,7 @@ const _mhchemParser: MhchemParser = {
 				if (input.match(/^\([a-z]+\)$/)) { return null; }  // state of aggregation = no formula
 				const match = input.match(/^(?:[a-z]|(?:[0-9\ \+\-\,\.\(\)]+[a-z])+[0-9\ \+\-\,\.\(\)]*|(?:[a-z][0-9\ \+\-\,\.\(\)]+)+[a-z]?)$/);
 				if (match) {
-					return { match_: match[0], remainder: input.substr(match[0].length) };
+					return { match_: match[0], remainder: input.substring(match[0].length) };
 				}
 				return null;
 			},
@@ -356,7 +356,7 @@ const _mhchemParser: MhchemParser = {
 				let braces = 0;
 				while (i < input.length) {
 					let a = input.charAt(i);
-					const match = _match(input.substr(i), endChars);
+					const match = _match(input.substring(i), endChars);
 					if (match !== null  &&  braces === 0) {
 						return { endMatchBegin: i, endMatchEnd: i + match.length };
 					} else if (a === "{") {
@@ -377,7 +377,7 @@ const _mhchemParser: MhchemParser = {
 			};
 			let match = _match(input, begExcl);
 			if (match === null) { return null; }
-			input = input.substr(match.length);
+			input = input.substring(match.length);
 			match = _match(input, begIncl);
 			if (match === null) { return null; }
 			const e = _findObserveGroups(input, match.length, endIncl || endExcl);
@@ -386,10 +386,10 @@ const _mhchemParser: MhchemParser = {
 			if (!(beg2Excl || beg2Incl)) {
 				return {
 					match_: match1,
-					remainder: input.substr(e.endMatchEnd)
+					remainder: input.substring(e.endMatchEnd)
 				};
 			} else {
-				const group2 = this.findObserveGroups(input.substr(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
+				const group2 = this.findObserveGroups(input.substring(e.endMatchEnd), beg2Excl, beg2Incl, end2Incl, end2Excl);
 				if (group2 === null) { return null; }
 				const matchRet: string[] = [match1, group2.match_];
 				return {
@@ -414,9 +414,9 @@ const _mhchemParser: MhchemParser = {
 				const match = input.match(pattern);
 				if (match) {
 					if (match.length > 2) {
-						return { match_: match.slice(1), remainder: input.substr(match[0].length) };
+						return { match_: match.slice(1), remainder: input.substring(match[0].length) };
 					} else {
-						return { match_: match[1] || match[0], remainder: input.substr(match[0].length) };
+						return { match_: match[1] || match[0], remainder: input.substring(match[0].length) };
 					}
 				}
 				return null;
@@ -453,8 +453,8 @@ const _mhchemParser: MhchemParser = {
 		'1/2': function (_buffer, m) {
 			let ret: Parsed[] = [];
 			if (m.match(/^[+\-]/)) {
-				ret.push(m.substr(0, 1));
-				m = m.substr(1);
+				ret.push(m.substring(0, 1));
+				m = m.substring(1);
 			}
 			const n = m.match(/^([0-9]+|\$[a-z]\$|[a-z])\/([0-9]+)(\$[a-z]\$|[a-z])?$/);
 			n[1] = n[1].replace(/\$/g, "");
@@ -1254,10 +1254,10 @@ const _mhchemParser: MhchemParser = {
 					let a = buffer.text_.length % 3;
 					if (a === 0) { a = 3; }
 					for (let i=buffer.text_.length-3; i>0; i-=3) {
-						ret.push(buffer.text_.substr(i, 3));
+						ret.push(buffer.text_.substring(i, i + 3));
 						ret.push({ type_: '1000 separator' });
 					}
-					ret.push(buffer.text_.substr(0, a));
+					ret.push(buffer.text_.substring(0, a));
 					ret.reverse();
 				} else {
 					ret.push(buffer.text_);
@@ -1273,10 +1273,10 @@ const _mhchemParser: MhchemParser = {
 					const a = buffer.text_.length - 3;
 					let i: number;
 					for (i=0; i<a; i+=3) {
-						ret.push(buffer.text_.substr(i, 3));
+						ret.push(buffer.text_.substring(i, i + 3));
 						ret.push({ type_: '1000 separator' });
 					}
-					ret.push(buffer.text_.substr(i));
+					ret.push(buffer.text_.substring(i));
 				} else {
 					ret.push(buffer.text_);
 				}
@@ -1390,8 +1390,8 @@ const _mhchemTexify: MhchemTexify = {
 				res = "\\mathrm{" + buf.p1 + "}";
 				break;
 			case 'text':
-				if (buf.p1.match(/[\^_]/)) {
-					buf.p1 = buf.p1.replace(" ", "~").replace("-", "\\text{-}");
+				if (buf.p1.match(/[\^_]/)) {  // treat simple math (like e_2) in text escape = existing misuse
+					buf.p1 = buf.p1.replace(/ /g, "~").replace(/-/g, "\\text{-}");
 					res = "\\mathrm{" + buf.p1 + "}";
 				} else {
 					res = "\\text{" + buf.p1 + "}";
