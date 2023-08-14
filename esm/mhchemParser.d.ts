@@ -1,5 +1,5 @@
 /*!
- *************************************************************************
+ **************************************************************************
  *
  *  mhchemParser.ts
  *  4.2.2
@@ -9,15 +9,16 @@
  *  mhchem's \ce is a tool for writing beautiful chemical equations easily.
  *  mhchem's \pu is a tool for writing physical units easily.
  *
- *  ----------------------------------------------------------------------
+ *  -----------------------------------------------------------------------
  *
- *  Copyright (c) 2015-2023 Martin Hensel
+ *  Copyright 2015-2023 Martin Hensel
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
  *  You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
+ *      or in file LICENSE.txt
  *
  *  Unless required by applicable law or agreed to in writing, software
  *  distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,10 +26,11 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  ----------------------------------------------------------------------
+ *  -----------------------------------------------------------------------
  *
  *  https://github.com/mhchem/mhchemParser
  *
+ **************************************************************************
  */
 export declare class mhchemParser {
     static toTex(input: string, type: "tex" | "ce" | "pu"): string;
